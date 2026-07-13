@@ -1,0 +1,320 @@
+// Prisma schema for the Media Challenge Initiative HR System.
+// Learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// RBAC: Role and Permission are rows in the database, not hardcoded enums.
+// Adding a new role (or changing what an existing role can do) is a data
+// change — insert/update rows — not a code change or redeploy. Application
+// code only ever asks "does this user have permission X", never "is this
+// user's role named Y", so new roles slot in without touching route logic.
+// ---------------------------------------------------------------------------
+
+model Role {
+  id          Int          @id @default(autoincrement())
+  name        String       @unique
+  description String?
+  permissions Permission[] @relation("RolePermissions")
+  users       User[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Permission {
+  id          Int      @id @default(autoincrement())
+  // Dot-namespaced action key, e.g. "employee:create", "payroll:approve".
+  key         String   @unique
+  description String?
+  roles       Role[]   @relation("RolePermissions")
+  createdAt   DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// User holds auth/login state. Employee holds HR/people-data. They are kept
+// separate (1:1) because they change for different reasons and have very
+// different sensitivity: Employee has salary/bank/TIN data an HR admin
+// manages, User has password/session data the platform manages. Every
+// person who can log in has exactly one of each.
+// ---------------------------------------------------------------------------
+
+model User {
+  id                  Int       @id @default(autoincrement())
+  email               String    @unique
+  passwordHash        String? // null until the employee completes one-time setup
+  isActive            Boolean   @default(true)
+  roleId              Int
+  role                Role      @relation(fields: [roleId], references: [id])
+  employeeId          Int       @unique
+  employee            Employee  @relation(fields: [employeeId], references: [id])
+  setupToken          String?   @unique
+  setupTokenExpiresAt DateTime?
+  lastLoginAt         DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  auditLogs        AuditLog[]          @relation("AuditActor")
+  uploadedDocs     Document[]          @relation("DocumentUploader")
+  payrollApprovals PayrollRun[]        @relation("PayrollApprovedBy")
+  adjustmentsMade  PayrollAdjustment[] @relation("AdjustmentCreatedBy")
+}
+
+enum EmploymentStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum ContractType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERN
+}
+
+model Employee {
+  id         Int    @id @default(autoincrement())
+  // Human-facing, auto-generated identifier (e.g. "MCI-2026-0001").
+  // Generated in application code inside the creation transaction, not by
+  // the database, because the format encodes the year and a running count.
+  employeeId String @unique
+
+  fullName      String
+  personalEmail String   @unique
+  workEmail     String   @unique
+  dateOfBirth   DateTime
+
+  jobTitle   String
+  department String
+
+  lineManagerId Int?
+  lineManager   Employee?  @relation("ManagerToReports", fields: [lineManagerId], references: [id])
+  directReports Employee[] @relation("ManagerToReports")
+
+  startDate DateTime
+
+  // --- Sensitive fields -----------------------------------------------
+  // Salary, bank, TIN and NSSF are stored in plaintext columns for this
+  // dev build. In production, add column-level or application-level
+  // encryption-at-rest (e.g. Postgres pgcrypto, or field encryption with a
+  // library such as @47ng/cloak backed by a KMS-managed key), restrict the
+  // DB role that the app connects as to only what it needs, and enable
+  // disk-level encryption on the database volume.
+  salary            Decimal @db.Decimal(12, 2)
+  bankName          String
+  bankAccountNumber String
+  tin               String
+  nssfNumber        String
+  // ----------------------------------------------------------------------
+
+  contractType  ContractType
+  contractStart DateTime
+  contractEnd   DateTime?
+
+  employmentStatus EmploymentStatus @default(ACTIVE)
+  archivedAt       DateTime?
+
+  mobile                String?
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  profilePictureUrl     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user                  User?
+  leaveRequestsMade     LeaveRequest[]     @relation("LeaveRequester")
+  leaveRequestsApproved LeaveRequest[]     @relation("LeaveApprover")
+  leaveBalances         LeaveBalance[]
+  attendanceRecords     AttendanceRecord[]
+  payrollRuns           PayrollRun[]
+
+  @@index([department])
+  @@index([lineManagerId])
+  @@index([employmentStatus])
+}
+
+model LeaveType {
+  id                Int    @id @default(autoincrement())
+  name              String @unique
+  defaultAnnualDays Int
+
+  leaveRequests LeaveRequest[]
+  leaveBalances LeaveBalance[]
+}
+
+enum LeaveRequestStatus {
+  PENDING
+  APPROVED
+  DECLINED
+}
+
+model LeaveRequest {
+  id Int @id @default(autoincrement())
+
+  employeeId Int
+  employee   Employee @relation("LeaveRequester", fields: [employeeId], references: [id])
+
+  leaveTypeId Int
+  leaveType   LeaveType @relation(fields: [leaveTypeId], references: [id])
+
+  startDate DateTime
+  endDate   DateTime
+  reason    String
+
+  status LeaveRequestStatus @default(PENDING)
+
+  approverId Int?
+  approver   Employee? @relation("LeaveApprover", fields: [approverId], references: [id])
+
+  // Required by the acceptance criteria when status is DECLINED; enforced
+  // in application code (Prisma doesn't support conditional NOT NULL).
+  decisionReason String?
+  decidedAt      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([status])
+}
+
+model LeaveBalance {
+  id Int @id @default(autoincrement())
+
+  employeeId Int
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  leaveTypeId Int
+  leaveType   LeaveType @relation(fields: [leaveTypeId], references: [id])
+
+  remainingDays Decimal @db.Decimal(5, 2)
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([employeeId, leaveTypeId])
+}
+
+enum AttendanceMethod {
+  GEOFENCE
+  BIOMETRIC
+  MANUAL
+}
+
+model AttendanceRecord {
+  id Int @id @default(autoincrement())
+
+  employeeId Int
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  clockIn  DateTime
+  clockOut DateTime?
+  method   AttendanceMethod
+
+  isLate Boolean  @default(false)
+  flags  String[] // e.g. ["late", "early-leave"]
+
+  notes String?
+
+  createdAt DateTime @default(now())
+
+  @@index([employeeId, clockIn])
+}
+
+enum PayrollStatus {
+  DRAFT
+  HR_APPROVED
+  APPROVED_FOR_PAYMENT
+}
+
+model PayrollRun {
+  id Int @id @default(autoincrement())
+
+  // e.g. "2026-07" for a monthly run.
+  period String
+
+  employeeId Int
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  grossPay   Decimal @db.Decimal(12, 2)
+  deductions Decimal @db.Decimal(12, 2)
+  netPay     Decimal @db.Decimal(12, 2)
+
+  status PayrollStatus @default(DRAFT)
+
+  approvedById Int?
+  approvedBy   User?     @relation("PayrollApprovedBy", fields: [approvedById], references: [id])
+  approvedAt   DateTime?
+
+  adjustments PayrollAdjustment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([employeeId, period])
+  @@index([period])
+  @@index([status])
+}
+
+// Ad-hoc bonuses/deductions on a payroll run, each with a mandatory reason
+// so it's auditable why a specific run doesn't match the base calculation.
+model PayrollAdjustment {
+  id Int @id @default(autoincrement())
+
+  payrollRunId Int
+  payrollRun   PayrollRun @relation(fields: [payrollRunId], references: [id])
+
+  amount Decimal @db.Decimal(12, 2) // positive = bonus, negative = deduction
+  reason String
+
+  createdById Int
+  createdBy   User @relation("AdjustmentCreatedBy", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model Document {
+  id Int @id @default(autoincrement())
+
+  title    String
+  filePath String
+  category String
+
+  uploadedById Int
+  uploadedBy   User @relation("DocumentUploader", fields: [uploadedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([title])
+  @@index([category])
+}
+
+// Every create/update/delete in the system writes one of these, inside the
+// same DB transaction as the mutation it describes.
+model AuditLog {
+  id Int @id @default(autoincrement())
+
+  actorId   Int?
+  actor     User?  @relation("AuditActor", fields: [actorId], references: [id])
+  // Denormalized snapshot so the log entry stays meaningful even if the
+  // actor's User/Employee record is later archived or changed.
+  actorName String
+
+  action   String // e.g. "employee.create", "leave.approve"
+  entity   String // e.g. "Employee", "LeaveRequest"
+  entityId String
+
+  metadata Json?
+
+  timestamp DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([timestamp])
+}
