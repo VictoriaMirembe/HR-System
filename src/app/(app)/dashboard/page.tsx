@@ -3,6 +3,7 @@ import { verifySession } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/rbac/check";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
+import { ClockWidget } from "@/components/clock-widget";
 
 export default async function DashboardPage() {
   const session = await verifySession();
@@ -17,6 +18,11 @@ export default async function DashboardPage() {
       workEmail: true,
       startDate: true,
     },
+  });
+
+  const openRecord = await prisma.attendanceRecord.findFirst({
+    where: { employeeId: session.employeeId, clockOut: null },
+    select: { id: true, clockIn: true, method: true },
   });
 
   const canCreateEmployees = hasPermission(session, PERMISSIONS.EMPLOYEE_CREATE);
@@ -41,6 +47,18 @@ export default async function DashboardPage() {
         />
       </div>
 
+      <ClockWidget
+        initialOpenRecord={
+          openRecord
+            ? {
+                id: openRecord.id,
+                clockIn: openRecord.clockIn.toISOString(),
+                method: openRecord.method,
+              }
+            : null
+        }
+      />
+
       <div className="rounded-2xl border border-sky-100 bg-white p-6 shadow-sm">
         <h2 className="text-sm font-semibold text-sky-700">
           Quick actions
@@ -53,6 +71,12 @@ export default async function DashboardPage() {
           >
             View employee directory
           </Link>
+          <Link
+            href="/attendance"
+            className="rounded-full border border-sky-200 px-4 py-2 text-sm font-medium text-sky-700 transition hover:bg-sky-50"
+          >
+            View my attendance
+          </Link>
           {canCreateEmployees && (
             <Link
               href="/employees/new"
@@ -63,9 +87,9 @@ export default async function DashboardPage() {
           )}
         </div>
         <p className="mt-5 text-xs text-slate-400">
-          Leave, timesheet, and payroll widgets land here once those modules
-          are built (this dashboard is intentionally minimal for now — see
-          the Employee Self-Service Portal feature later in the build order).
+          Leave and payroll widgets land here once those modules are built
+          (this dashboard is intentionally minimal for now — see the
+          Employee Self-Service Portal feature later in the build order).
         </p>
       </div>
     </div>

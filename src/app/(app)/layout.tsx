@@ -48,6 +48,12 @@ export default async function AppLayout({
               >
                 Employees
               </Link>
+              <Link
+                href="/attendance"
+                className="text-slate-300 transition hover:text-white"
+              >
+                Attendance
+              </Link>
             </nav>
           </div>
           <div className="flex items-center gap-3 text-sm">
