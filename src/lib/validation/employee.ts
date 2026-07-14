@@ -12,32 +12,36 @@ export const contractTypeValues = [
   "INTERN",
 ] as const;
 
-export const createEmployeeSchema = z
-  .object({
-    fullName: z.string().trim().min(2, { error: "Full name is required." }),
-    personalEmail: z.email({ error: "Enter a valid personal email." }),
-    workEmail: z.email({ error: "Enter a valid work email." }),
-    dateOfBirth: z.coerce.date({ error: "Enter a valid date of birth." }),
-    jobTitle: z.string().trim().min(1, { error: "Job title is required." }),
-    department: z.string().trim().min(1, { error: "Department is required." }),
-    lineManagerId: z.coerce.number().int().positive().nullable().optional(),
-    startDate: z.coerce.date({ error: "Enter a valid start date." }),
-    salary: z.coerce
-      .number()
-      .positive({ error: "Salary must be a positive number." }),
-    bankName: z.string().trim().min(1, { error: "Bank name is required." }),
-    bankAccountNumber: z
-      .string()
-      .trim()
-      .min(1, { error: "Bank account number is required." }),
-    tin: z.string().trim().min(1, { error: "TIN is required." }),
-    nssfNumber: z.string().trim().min(1, { error: "NSSF number is required." }),
-    contractType: z.enum(contractTypeValues, {
-      error: "Select a contract type.",
-    }),
-    contractStart: z.coerce.date({ error: "Enter a valid contract start date." }),
-    contractEnd: z.coerce.date().nullable().optional(),
-  })
+// Base field shape, kept separate from `.refine()` cross-field checks so it
+// can also be used as `.partial()` for updates below — zod's refined
+// schemas (ZodEffects) don't support `.partial()` directly.
+export const employeeFieldsSchema = z.object({
+  fullName: z.string().trim().min(2, { error: "Full name is required." }),
+  personalEmail: z.email({ error: "Enter a valid personal email." }),
+  workEmail: z.email({ error: "Enter a valid work email." }),
+  dateOfBirth: z.coerce.date({ error: "Enter a valid date of birth." }),
+  jobTitle: z.string().trim().min(1, { error: "Job title is required." }),
+  department: z.string().trim().min(1, { error: "Department is required." }),
+  lineManagerId: z.coerce.number().int().positive().nullable().optional(),
+  startDate: z.coerce.date({ error: "Enter a valid start date." }),
+  salary: z.coerce
+    .number()
+    .positive({ error: "Salary must be a positive number." }),
+  bankName: z.string().trim().min(1, { error: "Bank name is required." }),
+  bankAccountNumber: z
+    .string()
+    .trim()
+    .min(1, { error: "Bank account number is required." }),
+  tin: z.string().trim().min(1, { error: "TIN is required." }),
+  nssfNumber: z.string().trim().min(1, { error: "NSSF number is required." }),
+  contractType: z.enum(contractTypeValues, {
+    error: "Select a contract type.",
+  }),
+  contractStart: z.coerce.date({ error: "Enter a valid contract start date." }),
+  contractEnd: z.coerce.date().nullable().optional(),
+});
+
+export const createEmployeeSchema = employeeFieldsSchema
   .refine((data) => data.personalEmail !== data.workEmail, {
     error: "Personal and work email must be different.",
     path: ["workEmail"],
@@ -47,4 +51,9 @@ export const createEmployeeSchema = z
     path: ["startDate"],
   });
 
+// HR editing an existing employee: every field optional, only the ones
+// present in the request body are validated and written.
+export const updateEmployeeSchema = employeeFieldsSchema.partial();
+
 export type CreateEmployeeInput = z.infer<typeof createEmployeeSchema>;
+export type UpdateEmployeeInput = z.infer<typeof updateEmployeeSchema>;
