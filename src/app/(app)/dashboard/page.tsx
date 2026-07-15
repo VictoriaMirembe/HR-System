@@ -25,6 +25,16 @@ export default async function DashboardPage() {
     select: { id: true, clockIn: true, method: true },
   });
 
+  const annualLeaveBalance = await prisma.leaveBalance.findFirst({
+    where: { employeeId: session.employeeId, leaveType: { name: "Annual Leave" } },
+  });
+  const pendingLeaveCount = await prisma.leaveRequest.count({
+    where: {
+      employeeId: session.employeeId,
+      status: { in: ["PENDING_SUPERVISOR", "PENDING_HR"] },
+    },
+  });
+
   const canCreateEmployees = hasPermission(session, PERMISSIONS.EMPLOYEE_CREATE);
 
   return (
@@ -38,13 +48,16 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Employee ID" value={employee.employeeId} />
         <StatCard label="Role" value={session.roleName} />
         <StatCard
-          label="Start date"
-          value={employee.startDate.toLocaleDateString()}
+          label="Annual leave remaining"
+          value={
+            annualLeaveBalance ? `${Number(annualLeaveBalance.remainingDays)} days` : "—"
+          }
         />
+        <StatCard label="Pending leave requests" value={String(pendingLeaveCount)} />
       </div>
 
       <ClockWidget
@@ -77,6 +90,12 @@ export default async function DashboardPage() {
           >
             View my attendance
           </Link>
+          <Link
+            href="/leave/new"
+            className="rounded-full border border-sky-200 px-4 py-2 text-sm font-medium text-sky-700 transition hover:bg-sky-50"
+          >
+            Request leave
+          </Link>
           {canCreateEmployees && (
             <Link
               href="/employees/new"
@@ -87,9 +106,9 @@ export default async function DashboardPage() {
           )}
         </div>
         <p className="mt-5 text-xs text-slate-400">
-          Leave and payroll widgets land here once those modules are built
-          (this dashboard is intentionally minimal for now — see the
-          Employee Self-Service Portal feature later in the build order).
+          Payroll widgets land here once that module is built (this
+          dashboard is intentionally minimal for now — see the Employee
+          Self-Service Portal feature later in the build order).
         </p>
       </div>
     </div>

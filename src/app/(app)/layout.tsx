@@ -54,6 +54,12 @@ export default async function AppLayout({
               >
                 Attendance
               </Link>
+              <Link
+                href="/leave"
+                className="text-slate-300 transition hover:text-white"
+              >
+                Leave
+              </Link>
             </nav>
           </div>
           <div className="flex items-center gap-3 text-sm">

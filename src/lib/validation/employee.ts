@@ -12,6 +12,10 @@ export const contractTypeValues = [
   "INTERN",
 ] as const;
 
+// Deliberately minimal — see the Gender enum comment in schema.prisma. Only
+// used to gate Maternity/Paternity Leave eligibility.
+export const genderValues = ["MALE", "FEMALE"] as const;
+
 // Base field shape, kept separate from `.refine()` cross-field checks so it
 // can also be used as `.partial()` for updates below — zod's refined
 // schemas (ZodEffects) don't support `.partial()` directly.
@@ -20,6 +24,7 @@ export const employeeFieldsSchema = z.object({
   personalEmail: z.email({ error: "Enter a valid personal email." }),
   workEmail: z.email({ error: "Enter a valid work email." }),
   dateOfBirth: z.coerce.date({ error: "Enter a valid date of birth." }),
+  gender: z.enum(genderValues, { error: "Select a gender." }),
   jobTitle: z.string().trim().min(1, { error: "Job title is required." }),
   department: z.string().trim().min(1, { error: "Department is required." }),
   lineManagerId: z.coerce.number().int().positive().nullable().optional(),

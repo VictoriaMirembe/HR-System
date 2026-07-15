@@ -5,6 +5,26 @@ import { useRouter } from "next/navigation";
 
 type PotentialManager = { id: number; fullName: string; jobTitle: string };
 
+type InitialValues = {
+  fullName: string;
+  personalEmail: string;
+  workEmail: string;
+  dateOfBirth: string;
+  gender: string;
+  jobTitle: string;
+  department: string;
+  lineManagerId: number | null;
+  startDate: string;
+  salary: string;
+  bankName: string;
+  bankAccountNumber: string;
+  tin: string;
+  nssfNumber: string;
+  contractType: string;
+  contractStart: string;
+  contractEnd: string;
+};
+
 const CONTRACT_TYPES = [
   { value: "FULL_TIME", label: "Full-time" },
   { value: "PART_TIME", label: "Part-time" },
@@ -12,10 +32,14 @@ const CONTRACT_TYPES = [
   { value: "INTERN", label: "Intern" },
 ];
 
-export function EmployeeForm({
+export function EditEmployeeForm({
+  employeeId,
   potentialManagers,
+  initialValues,
 }: {
+  employeeId: number;
   potentialManagers: PotentialManager[];
+  initialValues: InitialValues;
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -51,17 +75,14 @@ export function EmployeeForm({
     };
 
     try {
-      const res = await fetch("/api/employees", {
-        method: "POST",
+      const res = await fetch(`/api/employees/${employeeId}`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       const body = await res.json();
 
       if (!res.ok) {
-        // The API returns both a generic `error` and, for validation
-        // failures, a Zod `issues` array with the specific field(s) and
-        // reason(s) — surface those instead of just "Validation failed".
         if (Array.isArray(body.issues) && body.issues.length > 0) {
           setError(
             body.issues
@@ -79,7 +100,7 @@ export function EmployeeForm({
         return;
       }
 
-      router.push(`/employees/${body.employee.id}`);
+      router.push(`/employees/${employeeId}`);
       router.refresh();
     } catch {
       setError("Network error. Please try again.");
@@ -105,29 +126,46 @@ export function EmployeeForm({
         <legend className="text-sm font-semibold text-sky-700">
           Personal details
         </legend>
-        <Field label="Full name" name="fullName" type="text" required />
+        <Field
+          label="Full name"
+          name="fullName"
+          type="text"
+          required
+          defaultValue={initialValues.fullName}
+        />
         <div className="grid grid-cols-2 gap-4">
           <Field
             label="Personal email"
             name="personalEmail"
             type="email"
             required
+            defaultValue={initialValues.personalEmail}
           />
-          <Field label="Work email" name="workEmail" type="email" required />
+          <Field
+            label="Work email"
+            name="workEmail"
+            type="email"
+            required
+            defaultValue={initialValues.workEmail}
+          />
         </div>
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Date of birth" name="dateOfBirth" type="date" required />
+          <Field
+            label="Date of birth"
+            name="dateOfBirth"
+            type="date"
+            required
+            defaultValue={initialValues.dateOfBirth}
+          />
           <div>
-            <label
-              htmlFor="gender"
-              className="block text-sm font-medium text-slate-700"
-            >
+            <label htmlFor="gender" className="block text-sm font-medium text-slate-700">
               Gender
             </label>
             <select
               id="gender"
               name="gender"
               required
+              defaultValue={initialValues.gender}
               className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-400"
             >
               <option value="">Select...</option>
@@ -146,8 +184,20 @@ export function EmployeeForm({
           Job details
         </legend>
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Job title" name="jobTitle" type="text" required />
-          <Field label="Department" name="department" type="text" required />
+          <Field
+            label="Job title"
+            name="jobTitle"
+            type="text"
+            required
+            defaultValue={initialValues.jobTitle}
+          />
+          <Field
+            label="Department"
+            name="department"
+            type="text"
+            required
+            defaultValue={initialValues.department}
+          />
         </div>
         <div>
           <label
@@ -159,6 +209,7 @@ export function EmployeeForm({
           <select
             id="lineManagerId"
             name="lineManagerId"
+            defaultValue={initialValues.lineManagerId ?? ""}
             className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-400"
           >
             <option value="">None</option>
@@ -169,13 +220,17 @@ export function EmployeeForm({
             ))}
           </select>
         </div>
-        <Field label="Start date" name="startDate" type="date" required />
+        <Field
+          label="Start date"
+          name="startDate"
+          type="date"
+          required
+          defaultValue={initialValues.startDate}
+        />
       </fieldset>
 
       <fieldset className="space-y-4">
-        <legend className="text-sm font-semibold text-sky-700">
-          Contract
-        </legend>
+        <legend className="text-sm font-semibold text-sky-700">Contract</legend>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label
@@ -188,6 +243,7 @@ export function EmployeeForm({
               id="contractType"
               name="contractType"
               required
+              defaultValue={initialValues.contractType}
               className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-400"
             >
               {CONTRACT_TYPES.map((type) => (
@@ -197,13 +253,20 @@ export function EmployeeForm({
               ))}
             </select>
           </div>
-          <Field label="Contract start" name="contractStart" type="date" required />
+          <Field
+            label="Contract start"
+            name="contractStart"
+            type="date"
+            required
+            defaultValue={initialValues.contractStart}
+          />
         </div>
         <Field
           label="Contract end (optional)"
           name="contractEnd"
           type="date"
           required={false}
+          defaultValue={initialValues.contractEnd}
         />
       </fieldset>
 
@@ -214,19 +277,44 @@ export function EmployeeForm({
             (sensitive — see README for production encryption notes)
           </span>
         </legend>
-        <Field label="Salary (monthly)" name="salary" type="number" required />
+        <Field
+          label="Salary (monthly)"
+          name="salary"
+          type="number"
+          required
+          defaultValue={initialValues.salary}
+        />
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Bank name" name="bankName" type="text" required />
+          <Field
+            label="Bank name"
+            name="bankName"
+            type="text"
+            required
+            defaultValue={initialValues.bankName}
+          />
           <Field
             label="Bank account number"
             name="bankAccountNumber"
             type="text"
             required
+            defaultValue={initialValues.bankAccountNumber}
           />
         </div>
         <div className="grid grid-cols-2 gap-4">
-          <Field label="TIN" name="tin" type="text" required />
-          <Field label="NSSF number" name="nssfNumber" type="text" required />
+          <Field
+            label="TIN"
+            name="tin"
+            type="text"
+            required
+            defaultValue={initialValues.tin}
+          />
+          <Field
+            label="NSSF number"
+            name="nssfNumber"
+            type="text"
+            required
+            defaultValue={initialValues.nssfNumber}
+          />
         </div>
       </fieldset>
 
@@ -235,7 +323,7 @@ export function EmployeeForm({
         disabled={submitting}
         className="w-full rounded-full bg-sky-600 px-3 py-2.5 text-sm font-semibold text-white shadow-sm shadow-sky-900/10 transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {submitting ? "Creating..." : "Create employee"}
+        {submitting ? "Saving..." : "Save changes"}
       </button>
     </form>
   );
@@ -246,11 +334,13 @@ function Field({
   name,
   type,
   required,
+  defaultValue,
 }: {
   label: string;
   name: string;
   type: string;
   required: boolean;
+  defaultValue?: string;
 }) {
   return (
     <div>
@@ -262,6 +352,7 @@ function Field({
         name={name}
         type={type}
         required={required}
+        defaultValue={defaultValue}
         step={type === "number" ? "0.01" : undefined}
         min={type === "number" ? "0" : undefined}
         className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-400"

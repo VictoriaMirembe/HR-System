@@ -77,6 +77,27 @@ export default async function AttendanceReportPage() {
     lastSeenRows.map((row) => [row.employeeId, row._max.clockIn])
   );
 
+  // Cross-reference with Leave Management: an absence is "excused" if the
+  // employee has an approved leave request covering today, otherwise it's
+  // unauthorized. This is the distinction the original acceptance criteria
+  // asks for ("unauthorized absences") — it only became possible once
+  // Leave Management existed to provide the excused side of the check.
+  const excusedLeaveToday = await prisma.leaveRequest.findMany({
+    where: {
+      status: "APPROVED",
+      employeeId: { in: absentEmployees.map((e) => e.id) },
+      startDate: { lte: todayStart },
+      endDate: { gte: todayStart },
+    },
+    select: { employeeId: true, leaveType: { select: { name: true } } },
+  });
+  const excusedByEmployeeId = new Map(
+    excusedLeaveToday.map((row) => [row.employeeId, row.leaveType.name])
+  );
+  const unauthorizedCount = absentEmployees.filter(
+    (employee) => !excusedByEmployeeId.has(employee.id)
+  ).length;
+
   return (
     <div className="space-y-6">
       <div>
@@ -86,10 +107,11 @@ export default async function AttendanceReportPage() {
         <span className="mt-1 block h-0.5 w-8 rounded-full bg-sky-400" />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-5">
         <StatCard label="Clocked in today" value={String(todayRecords.length)} />
         <StatCard label="Late today" value={String(lateToday)} />
         <StatCard label="Absent today" value={String(absentEmployees.length)} />
+        <StatCard label="Unauthorized" value={String(unauthorizedCount)} />
         <StatCard
           label="Chronically late"
           value={String(chronicallyLate.length)}
@@ -104,8 +126,8 @@ export default async function AttendanceReportPage() {
         <p className="mt-2 text-xs text-slate-400">
           Active employees with no clock-in yet today. This list shrinks as
           people clock in through the day, and freezes once the day ends.
-          It doesn&apos;t yet distinguish approved leave from unauthorized
-          absence — that comes with Leave Management.
+          Cross-referenced against approved leave to separate excused
+          absences from unauthorized ones.
         </p>
         <div className="mt-4 overflow-hidden rounded-xl border border-sky-50">
           <table className="min-w-full divide-y divide-sky-100 text-sm">
@@ -114,11 +136,13 @@ export default async function AttendanceReportPage() {
                 <th className="px-4 py-2">Employee</th>
                 <th className="px-4 py-2">Department</th>
                 <th className="px-4 py-2">Last clocked in</th>
+                <th className="px-4 py-2">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-sky-50">
               {absentEmployees.map((employee) => {
                 const lastSeen = lastSeenByEmployeeId.get(employee.id);
+                const excusedLeaveType = excusedByEmployeeId.get(employee.id);
                 return (
                   <tr key={employee.id}>
                     <td className="px-4 py-2 text-slate-900">
@@ -130,12 +154,23 @@ export default async function AttendanceReportPage() {
                     <td className="px-4 py-2 text-slate-600">
                       {lastSeen ? lastSeen.toLocaleDateString() : "Never"}
                     </td>
+                    <td className="px-4 py-2">
+                      {excusedLeaveType ? (
+                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                          On {excusedLeaveType}
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+                          Unauthorized
+                        </span>
+                      )}
+                    </td>
                   </tr>
                 );
               })}
               {absentEmployees.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="px-4 py-6 text-center text-slate-400">
+                  <td colSpan={4} className="px-4 py-6 text-center text-slate-400">
                     Everyone active has clocked in today.
                   </td>
                 </tr>

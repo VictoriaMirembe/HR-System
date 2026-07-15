@@ -78,6 +78,14 @@ enum ContractType {
   INTERN
 }
 
+// Deliberately minimal (not a general demographic field) — its only
+// purpose today is gating Maternity Leave / Paternity Leave eligibility
+// (see LeaveType.restrictedToGender below).
+enum Gender {
+  MALE
+  FEMALE
+}
+
 model Employee {
   id         Int    @id @default(autoincrement())
   // Human-facing, auto-generated identifier (e.g. "MCI-2026-0001").
@@ -89,6 +97,11 @@ model Employee {
   personalEmail String   @unique
   workEmail     String   @unique
   dateOfBirth   DateTime
+  // Nullable so existing employees created before this field was added
+  // aren't broken by the migration; HR can backfill via the update route.
+  // Required for all newly created employees (enforced in
+  // createEmployeeSchema, not at the database level).
+  gender        Gender?
 
   jobTitle   String
   department String
@@ -128,12 +141,14 @@ model Employee {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user                  User?
-  leaveRequestsMade     LeaveRequest[]     @relation("LeaveRequester")
-  leaveRequestsApproved LeaveRequest[]     @relation("LeaveApprover")
-  leaveBalances         LeaveBalance[]
-  attendanceRecords     AttendanceRecord[]
-  payrollRuns           PayrollRun[]
+  user                            User?
+  leaveRequestsMade               LeaveRequest[]     @relation("LeaveRequester")
+  leaveRequestsApprovedSupervisor LeaveRequest[]     @relation("LeaveSupervisorApprover")
+  leaveRequestsApprovedHr         LeaveRequest[]     @relation("LeaveHrApprover")
+  leaveRequestsDelegatedTo        LeaveRequest[]     @relation("LeaveDelegate")
+  leaveBalances                   LeaveBalance[]
+  attendanceRecords               AttendanceRecord[]
+  payrollRuns                     PayrollRun[]
 
   @@index([department])
   @@index([lineManagerId])
@@ -141,16 +156,32 @@ model Employee {
 }
 
 model LeaveType {
-  id                Int    @id @default(autoincrement())
-  name              String @unique
-  defaultAnnualDays Int
+  id                 Int     @id @default(autoincrement())
+  name               String  @unique
+  defaultAnnualDays  Int
+  // false for leave types with no capped allowance (e.g. Unpaid Leave):
+  // no LeaveBalance row is created for these, and requests against them
+  // skip the remaining-balance check entirely rather than being blocked
+  // by a balance of 0.
+  tracksBalance      Boolean @default(true)
+  // null = open to everyone. Set for Maternity Leave (FEMALE) / Paternity
+  // Leave (MALE): no balance row is granted to an employee whose gender
+  // doesn't match, and requesting it anyway is rejected server-side with a
+  // clear eligibility error rather than a confusing "0 days remaining".
+  restrictedToGender Gender?
 
   leaveRequests LeaveRequest[]
   leaveBalances LeaveBalance[]
 }
 
+// Two-stage approval: PENDING_SUPERVISOR (direct line manager) then
+// PENDING_HR (HR Administrator / Senior Management sign-off), matching the
+// acceptance criteria "approval routing goes through direct supervisor,
+// then HR/senior management sign-off". An employee with no line manager
+// skips straight to PENDING_HR (see POST /api/leave-requests).
 enum LeaveRequestStatus {
-  PENDING
+  PENDING_SUPERVISOR
+  PENDING_HR
   APPROVED
   DECLINED
 }
@@ -168,15 +199,29 @@ model LeaveRequest {
   endDate   DateTime
   reason    String
 
-  status LeaveRequestStatus @default(PENDING)
+  // Optional colleague covering the requester's responsibilities while
+  // they're away. Purely informational (no approval/permission logic
+  // depends on it) — surfaced to the approver for context and emailed once
+  // the request is finally approved.
+  delegateId Int?
+  delegate   Employee? @relation("LeaveDelegate", fields: [delegateId], references: [id])
 
-  approverId Int?
-  approver   Employee? @relation("LeaveApprover", fields: [approverId], references: [id])
+  status LeaveRequestStatus @default(PENDING_SUPERVISOR)
 
-  // Required by the acceptance criteria when status is DECLINED; enforced
-  // in application code (Prisma doesn't support conditional NOT NULL).
+  supervisorApproverId Int?
+  supervisorApprover   Employee? @relation("LeaveSupervisorApprover", fields: [supervisorApproverId], references: [id])
+  supervisorDecidedAt  DateTime?
+
+  hrApproverId Int?
+  hrApprover   Employee? @relation("LeaveHrApprover", fields: [hrApproverId], references: [id])
+  hrDecidedAt  DateTime?
+
+  // Required by the acceptance criteria when status is DECLINED (at either
+  // stage); enforced in application code (Prisma doesn't support
+  // conditional NOT NULL). The full immutable history of who decided what
+  // and when lives in AuditLog even though this row only holds the most
+  // recent decision at each stage.
   decisionReason String?
-  decidedAt      DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

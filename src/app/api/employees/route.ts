@@ -9,6 +9,7 @@ import { generateEmployeeId } from "@/lib/employee-id";
 import { writeAuditLog } from "@/lib/audit";
 import { emailProvider } from "@/lib/email";
 import { employeeListWhere } from "@/lib/employee-scope";
+import { grantEligibleLeaveBalances } from "@/lib/leave/grant-balances";
 import type { Prisma } from "@/generated/prisma/client";
 
 const SETUP_LINK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -153,6 +154,7 @@ export async function POST(request: NextRequest) {
         personalEmail: data.personalEmail,
         workEmail: data.workEmail,
         dateOfBirth: data.dateOfBirth,
+        gender: data.gender,
         jobTitle: data.jobTitle,
         department: data.department,
         lineManagerId: data.lineManagerId ?? null,
@@ -177,6 +179,12 @@ export async function POST(request: NextRequest) {
         setupTokenExpiresAt,
       },
     });
+
+    // Every new employee starts with a full balance for each capped leave
+    // type they're eligible for, so Leave Management is immediately usable
+    // for them, matching the acceptance criteria that a new employee
+    // record works across modules right away.
+    await grantEligibleLeaveBalances(tx, created.id, data.gender);
 
     await writeAuditLog(tx, {
       actorId: session.userId,

@@ -6,6 +6,7 @@ import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { updateEmployeeSchema } from "@/lib/validation/employee";
 import { writeAuditLog } from "@/lib/audit";
 import { canViewEmployee } from "@/lib/employee-scope";
+import { grantEligibleLeaveBalances } from "@/lib/leave/grant-balances";
 
 async function parseId(
   params: Promise<{ id: string }>
@@ -131,6 +132,13 @@ export async function PATCH(
       where: { id },
       data,
     });
+
+    // Setting (or correcting) gender may make the employee newly eligible
+    // for Maternity/Paternity Leave — grant it now rather than leaving them
+    // without a balance until someone happens to re-run the seed script.
+    if (data.gender !== undefined) {
+      await grantEligibleLeaveBalances(tx, id, employee.gender);
+    }
 
     await writeAuditLog(tx, {
       actorId: session.userId,

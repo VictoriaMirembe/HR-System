@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { verifySession } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
@@ -30,6 +31,7 @@ export default async function EmployeeDetailPage({
   }
 
   const canArchive = hasPermission(session, PERMISSIONS.EMPLOYEE_ARCHIVE);
+  const canEdit = hasPermission(session, PERMISSIONS.EMPLOYEE_UPDATE);
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -42,15 +44,25 @@ export default async function EmployeeDetailPage({
             {employee.employeeId} · {employee.jobTitle} · {employee.department}
           </p>
         </div>
-        <span
-          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-            employee.employmentStatus === "ACTIVE"
-              ? "bg-emerald-100 text-emerald-700"
-              : "bg-slate-200 text-slate-600"
-          }`}
-        >
-          {employee.employmentStatus}
-        </span>
+        <div className="flex items-center gap-3">
+          <span
+            className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+              employee.employmentStatus === "ACTIVE"
+                ? "bg-emerald-100 text-emerald-700"
+                : "bg-slate-200 text-slate-600"
+            }`}
+          >
+            {employee.employmentStatus}
+          </span>
+          {canEdit && (
+            <Link
+              href={`/employees/${employee.id}/edit`}
+              className="rounded-full border border-sky-200 px-4 py-2 text-sm font-medium text-sky-700 transition hover:bg-sky-50"
+            >
+              Edit
+            </Link>
+          )}
+        </div>
       </div>
 
       <Section title="Personal">
@@ -60,6 +72,7 @@ export default async function EmployeeDetailPage({
           label="Date of birth"
           value={employee.dateOfBirth.toLocaleDateString()}
         />
+        <Field label="Gender" value={employee.gender ?? "Not specified"} />
       </Section>
 
       <Section title="Job">
