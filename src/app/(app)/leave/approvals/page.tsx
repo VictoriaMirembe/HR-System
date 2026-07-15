@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/rbac/check";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { countLeaveDays } from "@/lib/leave/days";
+import { BackLink } from "@/components/back-link";
 import { DecisionButtons } from "./decision-buttons";
 
 export default async function LeaveApprovalsPage() {
@@ -45,6 +46,7 @@ export default async function LeaveApprovalsPage() {
 
   return (
     <div className="space-y-6">
+      <BackLink href="/leave" label="Back to leave" />
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Pending approvals</h1>
         <span className="mt-1 block h-0.5 w-8 rounded-full bg-sky-400" />

@@ -9,6 +9,7 @@ import {
   ORG_TIMEZONE,
 } from "@/lib/attendance/config";
 import { startOfDayInTimeZone } from "@/lib/attendance/timezone";
+import { BackLink } from "@/components/back-link";
 
 export default async function AttendanceReportPage() {
   const session = await verifySession();
@@ -100,6 +101,7 @@ export default async function AttendanceReportPage() {
 
   return (
     <div className="space-y-6">
+      <BackLink href="/attendance" label="Back to attendance" />
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">
           Attendance report

@@ -146,6 +146,7 @@ model Employee {
   leaveRequestsApprovedSupervisor LeaveRequest[]     @relation("LeaveSupervisorApprover")
   leaveRequestsApprovedHr         LeaveRequest[]     @relation("LeaveHrApprover")
   leaveRequestsDelegatedTo        LeaveRequest[]     @relation("LeaveDelegate")
+  leavePlans                      LeavePlan[]        @relation("LeavePlanOwner")
   leaveBalances                   LeaveBalance[]
   attendanceRecords               AttendanceRecord[]
   payrollRuns                     PayrollRun[]
@@ -169,9 +170,42 @@ model LeaveType {
   // doesn't match, and requesting it anyway is rejected server-side with a
   // clear eligibility error rather than a confusing "0 days remaining".
   restrictedToGender Gender?
+  // true for leave types where an employee must have submitted a
+  // LeavePlan for the request's year before they're allowed to request it
+  // (e.g. Annual Leave, Exam Leave) — see POST /api/leave-requests. Not
+  // applied to Sick Leave (inherently unplanned) or leave types that
+  // already have their own eligibility rule (Maternity/Paternity Leave).
+  requiresPlan       Boolean @default(false)
 
   leaveRequests LeaveRequest[]
   leaveBalances LeaveBalance[]
+  leavePlans    LeavePlan[]
+}
+
+model LeavePlan {
+  id Int @id @default(autoincrement())
+
+  employeeId Int
+  employee   Employee @relation("LeavePlanOwner", fields: [employeeId], references: [id])
+
+  leaveTypeId Int
+  leaveType   LeaveType @relation(fields: [leaveTypeId], references: [id])
+
+  // Calendar year this plan covers — a plan from a prior year doesn't
+  // satisfy the gate for a request in a later year.
+  year Int
+
+  plannedStartDate DateTime
+  plannedEndDate   DateTime
+  notes            String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // One plan per employee, per leave type, per year — resubmitting
+  // upserts it rather than creating duplicates.
+  @@unique([employeeId, leaveTypeId, year])
+  @@index([employeeId])
 }
 
 // Two-stage approval: PENDING_SUPERVISOR (direct line manager) then

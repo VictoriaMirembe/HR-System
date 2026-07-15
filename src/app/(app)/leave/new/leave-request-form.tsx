@@ -1,9 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
-type LeaveTypeOption = { id: number; name: string; remaining: number | null };
+type LeaveTypeOption = {
+  id: number;
+  name: string;
+  remaining: number | null;
+  needsPlan: boolean;
+};
 type PotentialDelegate = { id: number; fullName: string; jobTitle: string };
 
 export function LeaveRequestForm({
@@ -16,6 +22,10 @@ export function LeaveRequestForm({
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [selectedLeaveTypeId, setSelectedLeaveTypeId] = useState<number | null>(
+    leaveTypes[0]?.id ?? null
+  );
+  const selectedLeaveType = leaveTypes.find((lt) => lt.id === selectedLeaveTypeId);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -88,15 +98,28 @@ export function LeaveRequestForm({
           id="leaveTypeId"
           name="leaveTypeId"
           required
+          defaultValue={selectedLeaveTypeId ?? ""}
+          onChange={(event) => setSelectedLeaveTypeId(Number(event.target.value))}
           className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-400"
         >
           {leaveTypes.map((leaveType) => (
             <option key={leaveType.id} value={leaveType.id}>
               {leaveType.name}
               {leaveType.remaining !== null ? ` (${leaveType.remaining} remaining)` : ""}
+              {leaveType.needsPlan ? " — needs a leave plan" : ""}
             </option>
           ))}
         </select>
+        {selectedLeaveType?.needsPlan && (
+          <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+            You don&apos;t have a {new Date().getFullYear()} leave plan for{" "}
+            {selectedLeaveType.name} yet — you&apos;ll need one before this request
+            can be submitted.{" "}
+            <Link href="/leave/plans" className="font-medium underline">
+              Submit a leave plan
+            </Link>
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-4">

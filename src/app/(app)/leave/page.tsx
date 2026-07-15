@@ -46,6 +46,12 @@ export default async function LeavePage() {
           <span className="mt-1 block h-0.5 w-8 rounded-full bg-sky-400" />
         </div>
         <div className="flex gap-3">
+          <Link
+            href="/leave/plans"
+            className="rounded-full border border-sky-200 px-4 py-2 text-sm font-medium text-sky-700 transition hover:bg-sky-50"
+          >
+            Leave plans
+          </Link>
           {canApprove && (
             <Link
               href="/leave/approvals"

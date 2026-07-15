@@ -3,6 +3,7 @@ import { verifySession } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/rbac/check";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
+import { BackLink } from "@/components/back-link";
 import { EmployeeForm } from "./employee-form";
 
 export default async function NewEmployeePage() {
@@ -19,6 +20,7 @@ export default async function NewEmployeePage() {
 
   return (
     <div className="max-w-2xl space-y-6">
+      <BackLink href="/employees" label="Back to employees" />
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Add employee</h1>
         <span className="mt-1 block h-0.5 w-8 rounded-full bg-sky-400" />

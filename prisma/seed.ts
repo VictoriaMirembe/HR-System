@@ -25,36 +25,42 @@ const LEAVE_TYPES: {
   defaultAnnualDays: number;
   tracksBalance: boolean;
   restrictedToGender: $Enums.Gender | null;
+  requiresPlan: boolean;
 }[] = [
   {
     name: "Annual Leave",
     defaultAnnualDays: 21,
     tracksBalance: true,
     restrictedToGender: null,
+    requiresPlan: true,
   },
   {
     name: "Sick Leave",
     defaultAnnualDays: 10,
     tracksBalance: true,
     restrictedToGender: null,
+    requiresPlan: false,
   },
   {
     name: "Maternity Leave",
     defaultAnnualDays: 60,
     tracksBalance: true,
     restrictedToGender: "FEMALE",
+    requiresPlan: false,
   },
   {
     name: "Paternity Leave",
     defaultAnnualDays: 14, // 2 weeks
     tracksBalance: true,
     restrictedToGender: "MALE",
+    requiresPlan: false,
   },
   {
     name: "Exam Leave",
     defaultAnnualDays: 6,
     tracksBalance: true,
     restrictedToGender: null,
+    requiresPlan: true,
   },
   // Unpaid leave has no capped allowance — see the tracksBalance comment on
   // the LeaveType model in schema.prisma.
@@ -63,6 +69,7 @@ const LEAVE_TYPES: {
     defaultAnnualDays: 0,
     tracksBalance: false,
     restrictedToGender: null,
+    requiresPlan: false,
   },
 ];
 
@@ -115,6 +122,7 @@ async function main() {
         defaultAnnualDays: leaveType.defaultAnnualDays,
         tracksBalance: leaveType.tracksBalance,
         restrictedToGender: leaveType.restrictedToGender,
+        requiresPlan: leaveType.requiresPlan,
       },
       create: leaveType,
     });

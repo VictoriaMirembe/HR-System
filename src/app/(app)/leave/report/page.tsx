@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/rbac/check";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { countLeaveDays } from "@/lib/leave/days";
+import { BackLink } from "@/components/back-link";
 
 export default async function LeaveReportPage() {
   const session = await verifySession();
@@ -43,6 +44,7 @@ export default async function LeaveReportPage() {
 
   return (
     <div className="space-y-6">
+      <BackLink href="/leave" label="Back to leave" />
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Leave report</h1>
         <span className="mt-1 block h-0.5 w-8 rounded-full bg-sky-400" />

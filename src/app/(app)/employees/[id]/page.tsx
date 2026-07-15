@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/rbac/check";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { canViewEmployee } from "@/lib/employee-scope";
+import { BackLink } from "@/components/back-link";
 import { ArchiveButton } from "./archive-button";
 
 export default async function EmployeeDetailPage({
@@ -35,6 +36,7 @@ export default async function EmployeeDetailPage({
 
   return (
     <div className="max-w-3xl space-y-6">
+      <BackLink href="/employees" label="Back to employees" />
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">

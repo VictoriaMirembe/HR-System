@@ -98,6 +98,30 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Some leave types (Annual Leave, Exam Leave) require the employee to
+  // have submitted a leave plan for the year the request falls in before
+  // they're eligible to actually request it — see LeaveType.requiresPlan.
+  if (leaveType.requiresPlan) {
+    const requestYear = data.startDate.getFullYear();
+    const plan = await prisma.leavePlan.findUnique({
+      where: {
+        employeeId_leaveTypeId_year: {
+          employeeId: employee.id,
+          leaveTypeId: leaveType.id,
+          year: requestYear,
+        },
+      },
+    });
+    if (!plan) {
+      return NextResponse.json(
+        {
+          error: `You need to submit a ${requestYear} leave plan for ${leaveType.name} before requesting it. Go to Leave > Leave plans.`,
+        },
+        { status: 400 }
+      );
+    }
+  }
+
   if (data.delegateId) {
     if (data.delegateId === employee.id) {
       return NextResponse.json(
