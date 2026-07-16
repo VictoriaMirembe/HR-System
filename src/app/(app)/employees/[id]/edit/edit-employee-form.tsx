@@ -2,8 +2,10 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { departmentValues } from "@/lib/validation/employee";
 
 type PotentialManager = { id: number; fullName: string; jobTitle: string };
+type RoleOption = { id: number; name: string };
 
 type InitialValues = {
   fullName: string;
@@ -23,6 +25,12 @@ type InitialValues = {
   contractType: string;
   contractStart: string;
   contractEnd: string;
+  nextAppraisalDate: string;
+  roleId: number | null;
+  nextOfKinName: string;
+  nextOfKinRelationship: string;
+  nextOfKinPhone: string;
+  healthStatus: string;
 };
 
 const CONTRACT_TYPES = [
@@ -35,10 +43,12 @@ const CONTRACT_TYPES = [
 export function EditEmployeeForm({
   employeeId,
   potentialManagers,
+  roles,
   initialValues,
 }: {
   employeeId: number;
   potentialManagers: PotentialManager[];
+  roles: RoleOption[];
   initialValues: InitialValues;
 }) {
   const router = useRouter();
@@ -53,6 +63,8 @@ export function EditEmployeeForm({
     const form = new FormData(event.currentTarget);
     const lineManagerId = form.get("lineManagerId");
     const contractEnd = form.get("contractEnd");
+    const nextAppraisalDate = form.get("nextAppraisalDate");
+    const roleId = form.get("roleId");
 
     const payload = {
       fullName: form.get("fullName"),
@@ -72,6 +84,12 @@ export function EditEmployeeForm({
       contractType: form.get("contractType"),
       contractStart: form.get("contractStart"),
       contractEnd: contractEnd || null,
+      nextAppraisalDate: nextAppraisalDate || null,
+      roleId: roleId ? Number(roleId) : undefined,
+      nextOfKinName: form.get("nextOfKinName") || null,
+      nextOfKinRelationship: form.get("nextOfKinRelationship") || null,
+      nextOfKinPhone: form.get("nextOfKinPhone") || null,
+      healthStatus: form.get("healthStatus") || null,
     };
 
     try {
@@ -191,13 +209,38 @@ export function EditEmployeeForm({
             required
             defaultValue={initialValues.jobTitle}
           />
-          <Field
-            label="Department"
-            name="department"
-            type="text"
-            required
-            defaultValue={initialValues.department}
-          />
+          <div>
+            <label
+              htmlFor="department"
+              className="block text-sm font-medium text-slate-700"
+            >
+              Department
+            </label>
+            <select
+              id="department"
+              name="department"
+              required
+              defaultValue={initialValues.department}
+              className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-400"
+            >
+              {/* Legacy records created before the department list was
+                  fixed may hold a value outside departmentValues — surface
+                  it as-is so saving the form doesn't silently switch their
+                  department to whatever sorts first. */}
+              {!(departmentValues as readonly string[]).includes(
+                initialValues.department
+              ) && (
+                <option value={initialValues.department}>
+                  {initialValues.department} (legacy — please update)
+                </option>
+              )}
+              {departmentValues.map((dept) => (
+                <option key={dept} value={dept}>
+                  {dept}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
         <div>
           <label
@@ -268,6 +311,13 @@ export function EditEmployeeForm({
           required={false}
           defaultValue={initialValues.contractEnd}
         />
+        <Field
+          label="Next appraisal date (optional)"
+          name="nextAppraisalDate"
+          type="date"
+          required={false}
+          defaultValue={initialValues.nextAppraisalDate}
+        />
       </fieldset>
 
       <fieldset className="space-y-4">
@@ -317,6 +367,95 @@ export function EditEmployeeForm({
           />
         </div>
       </fieldset>
+
+      <fieldset className="space-y-4">
+        <legend className="text-sm font-semibold text-sky-700">
+          Next of kin{" "}
+          <span className="font-normal text-slate-400">
+            (sensitive — HR only, optional)
+          </span>
+        </legend>
+        <div className="grid grid-cols-2 gap-4">
+          <Field
+            label="Full name"
+            name="nextOfKinName"
+            type="text"
+            required={false}
+            defaultValue={initialValues.nextOfKinName}
+          />
+          <Field
+            label="Relationship"
+            name="nextOfKinRelationship"
+            type="text"
+            required={false}
+            defaultValue={initialValues.nextOfKinRelationship}
+          />
+        </div>
+        <Field
+          label="Phone number"
+          name="nextOfKinPhone"
+          type="text"
+          required={false}
+          defaultValue={initialValues.nextOfKinPhone}
+        />
+      </fieldset>
+
+      <fieldset className="space-y-4">
+        <legend className="text-sm font-semibold text-sky-700">
+          Health{" "}
+          <span className="font-normal text-slate-400">
+            (sensitive — HR only, optional)
+          </span>
+        </legend>
+        <div>
+          <label
+            htmlFor="healthStatus"
+            className="block text-sm font-medium text-slate-700"
+          >
+            Health status
+          </label>
+          <textarea
+            id="healthStatus"
+            name="healthStatus"
+            rows={3}
+            defaultValue={initialValues.healthStatus}
+            placeholder="e.g. Asthma, uses inhaler — or leave blank if none"
+            className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-400"
+          />
+        </div>
+      </fieldset>
+
+      {initialValues.roleId !== null && (
+        <fieldset className="space-y-4">
+          <legend className="text-sm font-semibold text-sky-700">
+            System access
+          </legend>
+          <div>
+            <label
+              htmlFor="roleId"
+              className="block text-sm font-medium text-slate-700"
+            >
+              Role
+            </label>
+            <select
+              id="roleId"
+              name="roleId"
+              defaultValue={initialValues.roleId}
+              className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-400"
+            >
+              {roles.map((role) => (
+                <option key={role.id} value={role.id}>
+                  {role.name}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-slate-400">
+              Controls what this person can see and do in the system.
+              Changing this takes effect the next time they sign in.
+            </p>
+          </div>
+        </fieldset>
+      )}
 
       <button
         type="submit"

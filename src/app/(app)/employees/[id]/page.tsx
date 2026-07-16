@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/rbac/check";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { canViewEmployee } from "@/lib/employee-scope";
+import { formatMoney } from "@/lib/format-money";
 import { BackLink } from "@/components/back-link";
 import { ArchiveButton } from "./archive-button";
 
@@ -22,7 +23,10 @@ export default async function EmployeeDetailPage({
 
   const employee = await prisma.employee.findUnique({
     where: { id },
-    include: { lineManager: { select: { id: true, fullName: true } } },
+    include: {
+      lineManager: { select: { id: true, fullName: true } },
+      user: { select: { role: { select: { name: true } } } },
+    },
   });
   if (!employee) {
     notFound();
@@ -38,13 +42,32 @@ export default async function EmployeeDetailPage({
     <div className="max-w-3xl space-y-6">
       <BackLink href="/employees" label="Back to employees" />
       <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">
-            {employee.fullName}
-          </h1>
-          <p className="text-sm text-slate-500">
-            {employee.employeeId} · {employee.jobTitle} · {employee.department}
-          </p>
+        <div className="flex items-center gap-4">
+          {employee.profilePictureKey ? (
+            // eslint-disable-next-line @next/next/no-img-element -- served from our own API route
+            <img
+              src={`/api/employees/${employee.id}/profile-picture`}
+              alt=""
+              className="h-14 w-14 rounded-full object-cover ring-1 ring-sky-100"
+            />
+          ) : (
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-sky-100 text-lg font-semibold text-sky-600">
+              {employee.fullName
+                .split(" ")
+                .map((p) => p[0])
+                .slice(0, 2)
+                .join("")
+                .toUpperCase()}
+            </div>
+          )}
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900">
+              {employee.fullName}
+            </h1>
+            <p className="text-sm text-slate-500">
+              {employee.employeeId} · {employee.jobTitle} · {employee.department}
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <span
@@ -85,7 +108,17 @@ export default async function EmployeeDetailPage({
           value={employee.lineManager?.fullName ?? "—"}
         />
         <Field label="Start date" value={employee.startDate.toLocaleDateString()} />
+        <Field
+          label="Next appraisal"
+          value={employee.nextAppraisalDate?.toLocaleDateString() ?? "—"}
+        />
       </Section>
+
+      {canEdit && (
+        <Section title="Account & access">
+          <Field label="System role" value={employee.user?.role.name ?? "—"} />
+        </Section>
+      )}
 
       <Section title="Contract">
         <Field label="Contract type" value={employee.contractType} />
@@ -100,12 +133,34 @@ export default async function EmployeeDetailPage({
       </Section>
 
       <Section title="Payroll (sensitive)">
-        <Field label="Salary" value={employee.salary.toString()} />
+        <Field label="Salary" value={formatMoney(employee.salary)} />
         <Field label="Bank name" value={employee.bankName} />
         <Field label="Bank account" value={employee.bankAccountNumber} />
         <Field label="TIN" value={employee.tin} />
         <Field label="NSSF number" value={employee.nssfNumber} />
       </Section>
+
+      {canEdit && (
+        <Section title="Next of kin (sensitive)">
+          <Field label="Full name" value={employee.nextOfKinName ?? "—"} />
+          <Field
+            label="Relationship"
+            value={employee.nextOfKinRelationship ?? "—"}
+          />
+          <Field label="Phone number" value={employee.nextOfKinPhone ?? "—"} />
+        </Section>
+      )}
+
+      {canEdit && (
+        <div className="rounded-2xl border border-sky-100 bg-white p-5 shadow-sm">
+          <h2 className="mb-3 text-sm font-semibold text-sky-700">
+            Health (sensitive)
+          </h2>
+          <p className="text-sm text-slate-900">
+            {employee.healthStatus ?? "Not recorded."}
+          </p>
+        </div>
+      )}
 
       {canArchive && employee.employmentStatus === "ACTIVE" && (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-5">

@@ -26,16 +26,25 @@ export default async function EditEmployeePage({
     notFound();
   }
 
-  const employee = await prisma.employee.findUnique({ where: { id } });
+  const employee = await prisma.employee.findUnique({
+    where: { id },
+    include: { user: { select: { roleId: true } } },
+  });
   if (!employee) {
     notFound();
   }
 
-  const potentialManagers = await prisma.employee.findMany({
-    where: { employmentStatus: "ACTIVE", id: { not: id } },
-    select: { id: true, fullName: true, jobTitle: true },
-    orderBy: { fullName: "asc" },
-  });
+  const [potentialManagers, roles] = await Promise.all([
+    prisma.employee.findMany({
+      where: { employmentStatus: "ACTIVE", id: { not: id } },
+      select: { id: true, fullName: true, jobTitle: true },
+      orderBy: { fullName: "asc" },
+    }),
+    prisma.role.findMany({
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -49,7 +58,9 @@ export default async function EditEmployeePage({
       <EditEmployeeForm
         employeeId={employee.id}
         potentialManagers={potentialManagers}
+        roles={roles}
         initialValues={{
+          roleId: employee.user?.roleId ?? null,
           fullName: employee.fullName,
           personalEmail: employee.personalEmail,
           workEmail: employee.workEmail,
@@ -67,6 +78,13 @@ export default async function EditEmployeePage({
           contractType: employee.contractType,
           contractStart: toDateInputValue(employee.contractStart),
           contractEnd: employee.contractEnd ? toDateInputValue(employee.contractEnd) : "",
+          nextAppraisalDate: employee.nextAppraisalDate
+            ? toDateInputValue(employee.nextAppraisalDate)
+            : "",
+          nextOfKinName: employee.nextOfKinName ?? "",
+          nextOfKinRelationship: employee.nextOfKinRelationship ?? "",
+          nextOfKinPhone: employee.nextOfKinPhone ?? "",
+          healthStatus: employee.healthStatus ?? "",
         }}
       />
     </div>

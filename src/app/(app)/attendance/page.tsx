@@ -1,9 +1,11 @@
 import Link from "next/link";
+import { Clock } from "lucide-react";
 import { verifySession } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/rbac/check";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { ClockWidget } from "@/components/clock-widget";
+import { PageHeader } from "@/components/page-header";
 
 function formatHours(clockIn: Date, clockOut: Date | null): string {
   if (!clockOut) return "—";
@@ -29,22 +31,21 @@ export default async function AttendancePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">
-            My attendance
-          </h1>
-          <span className="mt-1 block h-0.5 w-8 rounded-full bg-sky-400" />
-        </div>
-        {canViewReport && (
-          <Link
-            href="/attendance/report"
-            className="rounded-full border border-sky-200 px-4 py-2 text-sm font-medium text-sky-700 transition hover:bg-sky-50"
-          >
-            Org-wide report
-          </Link>
-        )}
-      </div>
+      <PageHeader
+        icon={Clock}
+        color="amber"
+        title="My attendance"
+        action={
+          canViewReport && (
+            <Link
+              href="/attendance/report"
+              className="rounded-full border border-sky-200 px-4 py-2 text-sm font-medium text-sky-700 transition hover:-translate-y-0.5 hover:bg-sky-50 hover:shadow-sm"
+            >
+              Org-wide report
+            </Link>
+          )
+        }
+      />
 
       <ClockWidget
         initialOpenRecord={
@@ -72,7 +73,7 @@ export default async function AttendancePage() {
           </thead>
           <tbody className="divide-y divide-sky-50">
             {records.map((record) => (
-              <tr key={record.id} className="hover:bg-sky-50/50">
+              <tr key={record.id} className="transition hover:bg-sky-50/50">
                 <td className="px-4 py-3 text-slate-900">
                   {record.clockIn.toLocaleDateString()}
                 </td>

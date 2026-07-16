@@ -156,3 +156,9 @@ Built so far, in dependency order:
   email, targeting local disk for now with an S3-compatible swap path.
 - **Session secret**: `SESSION_SECRET` in `.env` is a dev-only value.
   Generate a fresh one per environment and never commit it.
+- **Payroll tax rates**: NSSF (`src/lib/payroll/config.ts`) and PAYE
+  (`src/lib/payroll/paye.ts`) use commonly-published Uganda rates/bands,
+  not figures verified against a current Uganda Revenue Authority
+  publication. Confirm with Finance/URA before relying on this for real
+  payroll — the calculation mechanism is correct, but tax law changes over
+  time and these constants need to be kept current.

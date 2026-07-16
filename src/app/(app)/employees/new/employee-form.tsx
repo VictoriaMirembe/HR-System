@@ -2,8 +2,10 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { departmentValues } from "@/lib/validation/employee";
 
 type PotentialManager = { id: number; fullName: string; jobTitle: string };
+type RoleOption = { id: number; name: string };
 
 const CONTRACT_TYPES = [
   { value: "FULL_TIME", label: "Full-time" },
@@ -14,8 +16,10 @@ const CONTRACT_TYPES = [
 
 export function EmployeeForm({
   potentialManagers,
+  roles,
 }: {
   potentialManagers: PotentialManager[];
+  roles: RoleOption[];
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +33,7 @@ export function EmployeeForm({
     const form = new FormData(event.currentTarget);
     const lineManagerId = form.get("lineManagerId");
     const contractEnd = form.get("contractEnd");
+    const roleId = form.get("roleId");
 
     const payload = {
       fullName: form.get("fullName"),
@@ -48,6 +53,11 @@ export function EmployeeForm({
       contractType: form.get("contractType"),
       contractStart: form.get("contractStart"),
       contractEnd: contractEnd || null,
+      roleId: roleId ? Number(roleId) : undefined,
+      nextOfKinName: form.get("nextOfKinName") || null,
+      nextOfKinRelationship: form.get("nextOfKinRelationship") || null,
+      nextOfKinPhone: form.get("nextOfKinPhone") || null,
+      healthStatus: form.get("healthStatus") || null,
     };
 
     try {
@@ -147,7 +157,30 @@ export function EmployeeForm({
         </legend>
         <div className="grid grid-cols-2 gap-4">
           <Field label="Job title" name="jobTitle" type="text" required />
-          <Field label="Department" name="department" type="text" required />
+          <div>
+            <label
+              htmlFor="department"
+              className="block text-sm font-medium text-slate-700"
+            >
+              Department
+            </label>
+            <select
+              id="department"
+              name="department"
+              required
+              defaultValue=""
+              className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-400"
+            >
+              <option value="" disabled>
+                Select...
+              </option>
+              {departmentValues.map((dept) => (
+                <option key={dept} value={dept}>
+                  {dept}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
         <div>
           <label
@@ -227,6 +260,90 @@ export function EmployeeForm({
         <div className="grid grid-cols-2 gap-4">
           <Field label="TIN" name="tin" type="text" required />
           <Field label="NSSF number" name="nssfNumber" type="text" required />
+        </div>
+      </fieldset>
+
+      <fieldset className="space-y-4">
+        <legend className="text-sm font-semibold text-sky-700">
+          Next of kin{" "}
+          <span className="font-normal text-slate-400">
+            (sensitive — HR only, optional)
+          </span>
+        </legend>
+        <div className="grid grid-cols-2 gap-4">
+          <Field
+            label="Full name"
+            name="nextOfKinName"
+            type="text"
+            required={false}
+          />
+          <Field
+            label="Relationship"
+            name="nextOfKinRelationship"
+            type="text"
+            required={false}
+          />
+        </div>
+        <Field
+          label="Phone number"
+          name="nextOfKinPhone"
+          type="text"
+          required={false}
+        />
+      </fieldset>
+
+      <fieldset className="space-y-4">
+        <legend className="text-sm font-semibold text-sky-700">
+          Health{" "}
+          <span className="font-normal text-slate-400">
+            (sensitive — HR only, optional)
+          </span>
+        </legend>
+        <div>
+          <label
+            htmlFor="healthStatus"
+            className="block text-sm font-medium text-slate-700"
+          >
+            Health status
+          </label>
+          <textarea
+            id="healthStatus"
+            name="healthStatus"
+            rows={3}
+            placeholder="e.g. Asthma, uses inhaler — or leave blank if none"
+            className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-400"
+          />
+        </div>
+      </fieldset>
+
+      <fieldset className="space-y-4">
+        <legend className="text-sm font-semibold text-sky-700">
+          System access
+        </legend>
+        <div>
+          <label
+            htmlFor="roleId"
+            className="block text-sm font-medium text-slate-700"
+          >
+            Role
+          </label>
+          <select
+            id="roleId"
+            name="roleId"
+            defaultValue={roles.find((r) => r.name === "Employee")?.id ?? ""}
+            className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-400"
+          >
+            {roles.map((role) => (
+              <option key={role.id} value={role.id}>
+                {role.name}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-slate-400">
+            Controls what this person can see and do in the system.
+            Defaults to Employee — only choose a higher role (e.g. HR
+            Administrator) for people who should actually have it.
+          </p>
         </div>
       </fieldset>
 

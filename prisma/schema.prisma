@@ -60,10 +60,11 @@ model User {
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  auditLogs        AuditLog[]          @relation("AuditActor")
-  uploadedDocs     Document[]          @relation("DocumentUploader")
-  payrollApprovals PayrollRun[]        @relation("PayrollApprovedBy")
-  adjustmentsMade  PayrollAdjustment[] @relation("AdjustmentCreatedBy")
+  auditLogs               AuditLog[]          @relation("AuditActor")
+  uploadedDocs            Document[]          @relation("DocumentUploader")
+  payrollHrApprovals      PayrollRun[]        @relation("PayrollHrApprovedBy")
+  payrollFinanceApprovals PayrollRun[]        @relation("PayrollFinanceApprovedBy")
+  adjustmentsMade         PayrollAdjustment[] @relation("AdjustmentCreatedBy")
 }
 
 enum EmploymentStatus {
@@ -126,9 +127,14 @@ model Employee {
   nssfNumber        String
   // ----------------------------------------------------------------------
 
-  contractType  ContractType
-  contractStart DateTime
-  contractEnd   DateTime?
+  contractType      ContractType
+  contractStart     DateTime
+  contractEnd       DateTime?
+  // HR-set, shown as a dashboard alert to the employee when upcoming — see
+  // the Employee Self-Service Portal acceptance criteria ("upcoming
+  // appraisal dates"). No broader performance-review system exists yet;
+  // this is deliberately just a date to surface, not a workflow.
+  nextAppraisalDate DateTime?
 
   employmentStatus EmploymentStatus @default(ACTIVE)
   archivedAt       DateTime?
@@ -136,7 +142,24 @@ model Employee {
   mobile                String?
   emergencyContactName  String?
   emergencyContactPhone String?
-  profilePictureUrl     String?
+
+  // Next of kin: a formal HR record (relationship matters for benefits/
+  // legal purposes), distinct from the emergency contact above — that one
+  // is a quick "who to call" the employee maintains themselves via their
+  // profile; this one is HR-entered/HR-only. Nullable/optional throughout
+  // since it's being added after employees already exist.
+  nextOfKinName         String?
+  nextOfKinRelationship String?
+  nextOfKinPhone        String?
+
+  // Free text by design — HR fills in whatever's relevant ("Asthma, uses
+  // inhaler", "None") rather than picking from fixed categories. HR-only,
+  // same as the payroll fields above.
+  healthStatus String?
+  // Storage key (see src/lib/storage), not a literal URL — named to match
+  // Document.storageKey's semantics. The image is served through
+  // GET /api/employees/[id]/profile-picture, not this value directly.
+  profilePictureKey     String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -321,15 +344,44 @@ model PayrollRun {
   employeeId Int
   employee   Employee @relation(fields: [employeeId], references: [id])
 
-  grossPay   Decimal @db.Decimal(12, 2)
-  deductions Decimal @db.Decimal(12, 2)
-  netPay     Decimal @db.Decimal(12, 2)
+  // --- Calculation breakdown ---------------------------------------------
+  // Stored (not just derived at read time) so a finalized run's numbers
+  // stay stable even if the employee's salary or attendance data changes
+  // later, and so the review UI can show *why* a total is what it is
+  // without recomputing from scratch. See src/lib/payroll/calculate.ts.
+  basePay              Decimal @db.Decimal(12, 2)
+  overtimeHours        Decimal @default(0) @db.Decimal(6, 2)
+  overtimePay          Decimal @default(0) @db.Decimal(12, 2)
+  unpaidLeaveDays      Decimal @default(0) @db.Decimal(5, 2)
+  unpaidLeaveDeduction Decimal @default(0) @db.Decimal(12, 2)
+  // Informational only (not auto-deducted) — "late-coming data feeds into
+  // payroll for potential deductions" is surfaced to HR as a number so
+  // they can decide whether an ad-hoc adjustment is warranted, rather than
+  // an automatic penalty formula this build doesn't have a spec for.
+  lateDaysCount        Int     @default(0)
+
+  // Statutory deductions. Rates/bands live in src/lib/payroll/config.ts and
+  // src/lib/payroll/paye.ts — ⚠️ these are commonly-published figures, not
+  // verified against a current Uganda Revenue Authority (URA) publication.
+  // Confirm before relying on this for real payroll.
+  nssfEmployeeDeduction    Decimal @default(0) @db.Decimal(12, 2) // deducted from employee's pay
+  nssfEmployerContribution Decimal @default(0) @db.Decimal(12, 2) // employer cost only — NOT part of deductions/netPay
+  payeDeduction            Decimal @default(0) @db.Decimal(12, 2)
+
+  grossPay   Decimal @db.Decimal(12, 2) // basePay + overtimePay
+  deductions Decimal @db.Decimal(12, 2) // nssfEmployeeDeduction + payeDeduction + unpaidLeaveDeduction
+  netPay     Decimal @db.Decimal(12, 2) // grossPay - deductions + sum(adjustments.amount)
+  // ------------------------------------------------------------------------
 
   status PayrollStatus @default(DRAFT)
 
-  approvedById Int?
-  approvedBy   User?     @relation("PayrollApprovedBy", fields: [approvedById], references: [id])
-  approvedAt   DateTime?
+  hrApprovedById Int?
+  hrApprovedBy   User?     @relation("PayrollHrApprovedBy", fields: [hrApprovedById], references: [id])
+  hrApprovedAt   DateTime?
+
+  financeApprovedById Int?
+  financeApprovedBy   User?     @relation("PayrollFinanceApprovedBy", fields: [financeApprovedById], references: [id])
+  financeApprovedAt   DateTime?
 
   adjustments PayrollAdjustment[]
 
@@ -362,8 +414,17 @@ model Document {
   id Int @id @default(autoincrement())
 
   title    String
-  filePath String
   category String
+
+  // Original filename, shown to users and used as the download filename —
+  // kept separate from storageKey, which is an opaque location identifier
+  // the StorageProvider uses internally (see src/lib/storage). Keeping
+  // these separate means the storage backend can rename/namespace files on
+  // disk without affecting what the user sees.
+  fileName   String
+  storageKey String
+  mimeType   String
+  fileSize   Int // bytes
 
   uploadedById Int
   uploadedBy   User @relation("DocumentUploader", fields: [uploadedById], references: [id])

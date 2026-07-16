@@ -1,9 +1,12 @@
 import Link from "next/link";
+import { Users } from "lucide-react";
 import { verifySession } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/rbac/check";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { employeeListWhere } from "@/lib/employee-scope";
+import { departmentValues } from "@/lib/validation/employee";
+import { PageHeader } from "@/components/page-header";
 import type { Prisma } from "@/generated/prisma/client";
 
 export default async function EmployeesPage({
@@ -50,20 +53,21 @@ export default async function EmployeesPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Employees</h1>
-          <span className="mt-1 block h-0.5 w-8 rounded-full bg-sky-400" />
-        </div>
-        {canCreate && (
-          <Link
-            href="/employees/new"
-            className="rounded-full bg-sky-600 px-4 py-2 text-sm font-medium text-white shadow-sm shadow-sky-900/10 transition hover:bg-sky-500"
-          >
-            Add employee
-          </Link>
-        )}
-      </div>
+      <PageHeader
+        icon={Users}
+        color="sky"
+        title="Employees"
+        action={
+          canCreate && (
+            <Link
+              href="/employees/new"
+              className="rounded-full bg-sky-600 px-4 py-2 text-sm font-medium text-white shadow-sm shadow-sky-900/10 transition hover:-translate-y-0.5 hover:bg-sky-500 hover:shadow-md"
+            >
+              Add employee
+            </Link>
+          )
+        }
+      />
 
       <form className="flex flex-wrap gap-3 rounded-2xl border border-sky-100 bg-white p-4 shadow-sm">
         <input
@@ -73,6 +77,18 @@ export default async function EmployeesPage({
           placeholder="Search name, ID, email, title..."
           className="min-w-[220px] flex-1 rounded-full border border-slate-200 px-4 py-2 text-sm focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-400"
         />
+        <select
+          name="department"
+          defaultValue={department ?? ""}
+          className="rounded-full border border-slate-200 px-4 py-2 text-sm"
+        >
+          <option value="">All departments</option>
+          {departmentValues.map((dept) => (
+            <option key={dept} value={dept}>
+              {dept}
+            </option>
+          ))}
+        </select>
         <select
           name="status"
           defaultValue={status ?? ""}

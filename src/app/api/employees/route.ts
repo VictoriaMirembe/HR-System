@@ -126,13 +126,18 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const employeeRole = await prisma.role.findUnique({
-    where: { name: "Employee" },
-  });
-  if (!employeeRole) {
+  // Defaults every new hire to the "Employee" system role unless the HR
+  // Administrator creating them explicitly picks a different one (e.g. to
+  // set up a second HR Administrator or a Line Manager account directly).
+  const role = data.roleId
+    ? await prisma.role.findUnique({ where: { id: data.roleId } })
+    : await prisma.role.findUnique({ where: { name: "Employee" } });
+  if (!role) {
     return NextResponse.json(
-      { error: "Default 'Employee' role is not seeded. Run `npm run db:seed`." },
-      { status: 500 }
+      data.roleId
+        ? { error: "Selected role does not exist." }
+        : { error: "Default 'Employee' role is not seeded. Run `npm run db:seed`." },
+      { status: data.roleId ? 400 : 500 }
     );
   }
 
@@ -167,13 +172,18 @@ export async function POST(request: NextRequest) {
         contractType: data.contractType,
         contractStart: data.contractStart,
         contractEnd: data.contractEnd ?? null,
+        nextAppraisalDate: data.nextAppraisalDate ?? null,
+        nextOfKinName: data.nextOfKinName ?? null,
+        nextOfKinRelationship: data.nextOfKinRelationship ?? null,
+        nextOfKinPhone: data.nextOfKinPhone ?? null,
+        healthStatus: data.healthStatus ?? null,
       },
     });
 
     await tx.user.create({
       data: {
         email: data.workEmail,
-        roleId: employeeRole.id,
+        roleId: role.id,
         employeeId: created.id,
         setupToken,
         setupTokenExpiresAt,
@@ -192,7 +202,7 @@ export async function POST(request: NextRequest) {
       action: "employee.create",
       entity: "Employee",
       entityId: String(created.id),
-      metadata: { employeeId: created.employeeId },
+      metadata: { employeeId: created.employeeId, roleName: role.name },
     });
 
     return created;

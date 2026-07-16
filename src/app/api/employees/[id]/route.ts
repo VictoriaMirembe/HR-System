@@ -87,7 +87,10 @@ export async function PATCH(
       { status: 400 }
     );
   }
-  const data = parsed.data;
+  // roleId lives on User, not Employee — pulled out here so the rest of
+  // `data` can still be passed straight into `tx.employee.update({ data })`
+  // without Prisma rejecting an unknown column.
+  const { roleId, ...data } = parsed.data;
 
   if (data.lineManagerId === id) {
     return NextResponse.json(
@@ -122,6 +125,32 @@ export async function PATCH(
     }
   }
 
+  // Validate the target role up front (outside the transaction) so a bad
+  // roleId fails with a clean 400 instead of a mid-transaction rollback.
+  let newRole: { id: number; name: string } | null = null;
+  const existingUser =
+    roleId !== undefined
+      ? await prisma.user.findUnique({
+          where: { employeeId: id },
+          include: { role: { select: { id: true, name: true } } },
+        })
+      : null;
+  if (roleId !== undefined) {
+    if (!existingUser) {
+      return NextResponse.json(
+        { error: "This employee has no linked user account." },
+        { status: 400 }
+      );
+    }
+    newRole = await prisma.role.findUnique({ where: { id: roleId } });
+    if (!newRole) {
+      return NextResponse.json(
+        { error: "Selected role does not exist." },
+        { status: 400 }
+      );
+    }
+  }
+
   const actor = await prisma.employee.findUnique({
     where: { id: session.employeeId },
     select: { fullName: true },
@@ -140,14 +169,39 @@ export async function PATCH(
       await grantEligibleLeaveBalances(tx, id, employee.gender);
     }
 
-    await writeAuditLog(tx, {
-      actorId: session.userId,
-      actorName: actor?.fullName ?? "Unknown",
-      action: "employee.update",
-      entity: "Employee",
-      entityId: String(id),
-      metadata: { fields: Object.keys(data) },
-    });
+    if (Object.keys(data).length > 0) {
+      await writeAuditLog(tx, {
+        actorId: session.userId,
+        actorName: actor?.fullName ?? "Unknown",
+        action: "employee.update",
+        entity: "Employee",
+        entityId: String(id),
+        metadata: { fields: Object.keys(data) },
+      });
+    }
+
+    // Role lives on User, not Employee, so it's a second update in the
+    // same transaction — kept atomic with the audit write for the same
+    // reason every other mutation in this system is: the audit trail must
+    // never disagree with what actually changed.
+    if (newRole && existingUser && newRole.id !== existingUser.role.id) {
+      await tx.user.update({
+        where: { id: existingUser.id },
+        data: { roleId: newRole.id },
+      });
+
+      await writeAuditLog(tx, {
+        actorId: session.userId,
+        actorName: actor?.fullName ?? "Unknown",
+        action: "user.role_changed",
+        entity: "User",
+        entityId: String(existingUser.id),
+        metadata: {
+          fromRole: existingUser.role.name,
+          toRole: newRole.name,
+        },
+      });
+    }
 
     return employee;
   });
