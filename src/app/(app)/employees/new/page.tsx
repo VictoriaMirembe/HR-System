@@ -12,7 +12,7 @@ export default async function NewEmployeePage() {
     redirect("/employees");
   }
 
-  const [potentialManagers, roles] = await Promise.all([
+  const [potentialManagers, roles, departmentHeads] = await Promise.all([
     prisma.employee.findMany({
       where: { employmentStatus: "ACTIVE" },
       select: { id: true, fullName: true, jobTitle: true },
@@ -21,6 +21,10 @@ export default async function NewEmployeePage() {
     prisma.role.findMany({
       select: { id: true, name: true },
       orderBy: { name: "asc" },
+    }),
+    prisma.employee.findMany({
+      where: { isDepartmentHead: true, employmentStatus: "ACTIVE" },
+      select: { id: true, fullName: true, department: true },
     }),
   ]);
 
@@ -35,7 +39,11 @@ export default async function NewEmployeePage() {
           one-time account setup link to the personal email address.
         </p>
       </div>
-      <EmployeeForm potentialManagers={potentialManagers} roles={roles} />
+      <EmployeeForm
+        potentialManagers={potentialManagers}
+        roles={roles}
+        departmentHeads={departmentHeads}
+      />
     </div>
   );
 }

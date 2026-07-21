@@ -57,6 +57,11 @@ model User {
   setupToken          String?   @unique
   setupTokenExpiresAt DateTime?
   lastLoginAt         DateTime?
+
+  // Login rate limiting (see src/lib/auth/login-rate-limit.ts) — resets to
+  // 0/null on a successful login. lockedUntil is null when not locked.
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
@@ -106,6 +111,12 @@ model Employee {
 
   jobTitle   String
   department String
+
+  // Exactly one head per department is enforced in application code (see
+  // src/lib/employees/department-head.ts) — assigning a new head
+  // automatically un-marks whoever held it before, within the same
+  // transaction as the change that set it.
+  isDepartmentHead Boolean @default(false)
 
   lineManagerId Int?
   lineManager   Employee?  @relation("ManagerToReports", fields: [lineManagerId], references: [id])

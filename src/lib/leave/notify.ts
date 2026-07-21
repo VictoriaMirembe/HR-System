@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { emailProvider } from "@/lib/email";
+import { sendEmailSafely } from "@/lib/email";
 
 // "Employee: get notified by email on decision" (US-003) — interpreted as
 // the decisions that actually conclude something for the employee: a
@@ -13,7 +13,7 @@ async function notifyHrAdministrators(subject: string, body: string): Promise<vo
     select: { email: true },
   });
   await Promise.all(
-    hrUsers.map((user) => emailProvider.send({ to: user.email, subject, body }))
+    hrUsers.map((user) => sendEmailSafely({ to: user.email, subject, body }))
   );
 }
 
@@ -32,7 +32,7 @@ export async function notifyLeaveRequestSubmitted(params: {
       select: { workEmail: true },
     });
     if (manager) {
-      await emailProvider.send({
+      await sendEmailSafely({
         to: manager.workEmail,
         subject: `Leave request from ${params.employeeName}`,
         body: `${params.employeeName} has requested ${params.leaveTypeName} for ${dateRange}. Review it in the Pending Approvals list.`,
@@ -79,7 +79,7 @@ export async function notifyLeaveDecision(params: {
       ? `Your request for ${params.leaveTypeName} (${dateRange}) has been approved.`
       : `Your request for ${params.leaveTypeName} (${dateRange}) has been declined.\n\nReason: ${params.decisionReason}`;
 
-  await emailProvider.send({
+  await sendEmailSafely({
     to: params.employeeWorkEmail,
     subject: `Leave request ${params.decision === "APPROVED" ? "approved" : "declined"}`,
     body,
@@ -101,7 +101,7 @@ export async function notifyDelegate(params: {
   if (!delegate) return;
 
   const dateRange = `${params.startDate.toLocaleDateString()} – ${params.endDate.toLocaleDateString()}`;
-  await emailProvider.send({
+  await sendEmailSafely({
     to: delegate.workEmail,
     subject: `You're covering for ${params.employeeName} (${dateRange})`,
     body: `${params.employeeName}'s leave request has been approved for ${dateRange}. They've named you as their delegate while they're away.`,

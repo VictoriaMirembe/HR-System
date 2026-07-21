@@ -34,7 +34,7 @@ export default async function EditEmployeePage({
     notFound();
   }
 
-  const [potentialManagers, roles] = await Promise.all([
+  const [potentialManagers, roles, departmentHeads] = await Promise.all([
     prisma.employee.findMany({
       where: { employmentStatus: "ACTIVE", id: { not: id } },
       select: { id: true, fullName: true, jobTitle: true },
@@ -43,6 +43,10 @@ export default async function EditEmployeePage({
     prisma.role.findMany({
       select: { id: true, name: true },
       orderBy: { name: "asc" },
+    }),
+    prisma.employee.findMany({
+      where: { isDepartmentHead: true, employmentStatus: "ACTIVE", id: { not: id } },
+      select: { id: true, fullName: true, department: true },
     }),
   ]);
 
@@ -59,6 +63,7 @@ export default async function EditEmployeePage({
         employeeId={employee.id}
         potentialManagers={potentialManagers}
         roles={roles}
+        departmentHeads={departmentHeads}
         initialValues={{
           roleId: employee.user?.roleId ?? null,
           fullName: employee.fullName,
@@ -68,6 +73,7 @@ export default async function EditEmployeePage({
           gender: employee.gender ?? "",
           jobTitle: employee.jobTitle,
           department: employee.department,
+          isDepartmentHead: employee.isDepartmentHead,
           lineManagerId: employee.lineManagerId,
           startDate: toDateInputValue(employee.startDate),
           salary: employee.salary.toString(),

@@ -7,6 +7,7 @@ import { updateEmployeeSchema } from "@/lib/validation/employee";
 import { writeAuditLog } from "@/lib/audit";
 import { canViewEmployee } from "@/lib/employee-scope";
 import { grantEligibleLeaveBalances } from "@/lib/leave/grant-balances";
+import { demoteOtherDepartmentHeads } from "@/lib/employees/department-head";
 
 async function parseId(
   params: Promise<{ id: string }>
@@ -201,6 +202,25 @@ export async function PATCH(
           toRole: newRole.name,
         },
       });
+    }
+
+    // Exactly one department head at a time — assigning this employee as
+    // head demotes whoever held it before, in the same transaction.
+    if (data.isDepartmentHead === true) {
+      const demoted = await demoteOtherDepartmentHeads(tx, employee.department, employee.id);
+      if (demoted) {
+        await writeAuditLog(tx, {
+          actorId: session.userId,
+          actorName: actor?.fullName ?? "Unknown",
+          action: "employee.update",
+          entity: "Employee",
+          entityId: String(demoted.id),
+          metadata: {
+            fields: ["isDepartmentHead"],
+            reason: `Replaced as ${employee.department} department head by ${employee.fullName}`,
+          },
+        });
+      }
     }
 
     return employee;

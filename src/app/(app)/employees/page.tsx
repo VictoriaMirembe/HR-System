@@ -12,10 +12,15 @@ import type { Prisma } from "@/generated/prisma/client";
 export default async function EmployeesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ search?: string; department?: string; status?: string }>;
+  searchParams: Promise<{
+    search?: string;
+    department?: string;
+    status?: string;
+    headsOnly?: string;
+  }>;
 }) {
   const session = await verifySession();
-  const { search, department, status } = await searchParams;
+  const { search, department, status, headsOnly } = await searchParams;
 
   const canCreate = hasPermission(session, PERMISSIONS.EMPLOYEE_CREATE);
 
@@ -25,6 +30,7 @@ export default async function EmployeesPage({
     ...(status === "ACTIVE" || status === "ARCHIVED"
       ? { employmentStatus: status }
       : {}),
+    ...(headsOnly === "true" ? { isDepartmentHead: true } : {}),
     ...(search
       ? {
           OR: [
@@ -45,6 +51,7 @@ export default async function EmployeesPage({
       fullName: true,
       jobTitle: true,
       department: true,
+      isDepartmentHead: true,
       workEmail: true,
       employmentStatus: true,
     },
@@ -98,6 +105,14 @@ export default async function EmployeesPage({
           <option value="ACTIVE">Active</option>
           <option value="ARCHIVED">Archived</option>
         </select>
+        <select
+          name="headsOnly"
+          defaultValue={headsOnly ?? ""}
+          className="rounded-full border border-slate-200 px-4 py-2 text-sm"
+        >
+          <option value="">All employees</option>
+          <option value="true">Department heads only</option>
+        </select>
         <button
           type="submit"
           className="rounded-full border border-sky-200 px-4 py-2 text-sm font-medium text-sky-700 transition hover:bg-sky-50"
@@ -130,7 +145,14 @@ export default async function EmployeesPage({
                 </td>
                 <td className="px-4 py-3 text-slate-900">{employee.fullName}</td>
                 <td className="px-4 py-3 text-slate-600">{employee.jobTitle}</td>
-                <td className="px-4 py-3 text-slate-600">{employee.department}</td>
+                <td className="px-4 py-3 text-slate-600">
+                  {employee.department}
+                  {employee.isDepartmentHead && (
+                    <span className="ml-2 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700">
+                      Head
+                    </span>
+                  )}
+                </td>
                 <td className="px-4 py-3">
                   <span
                     className={`rounded-full px-2 py-0.5 text-xs font-medium ${

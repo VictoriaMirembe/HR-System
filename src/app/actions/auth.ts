@@ -6,6 +6,13 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { createSession, deleteSession } from "@/lib/session";
 import { writeAuditLog } from "@/lib/audit";
+import { checkPasswordPolicy } from "@/lib/security/password-policy";
+import {
+  isLockedOut,
+  minutesRemaining,
+  recordFailedAttempt,
+  recordSuccessfulLogin,
+} from "@/lib/auth/login-rate-limit";
 
 export type FormState = { error?: string } | undefined;
 
@@ -44,15 +51,36 @@ export async function login(
     return invalidCredentials;
   }
 
+  const now = new Date();
+  if (isLockedOut(user, now)) {
+    return {
+      error: `Too many failed attempts. Try again in ${minutesRemaining(user.lockedUntil!, now)} minute(s).`,
+    };
+  }
+
   const passwordValid = await bcrypt.compare(password, user.passwordHash);
   if (!passwordValid) {
+    const nextState = recordFailedAttempt(user, now);
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({ where: { id: user.id }, data: nextState });
+      if (nextState.lockedUntil) {
+        await writeAuditLog(tx, {
+          actorId: user.id,
+          actorName: user.employee.fullName,
+          action: "auth.account_locked",
+          entity: "User",
+          entityId: String(user.id),
+          metadata: { failedAttempts: nextState.failedLoginAttempts },
+        });
+      }
+    });
     return invalidCredentials;
   }
 
   await prisma.$transaction(async (tx) => {
     await tx.user.update({
       where: { id: user.id },
-      data: { lastLoginAt: new Date() },
+      data: { ...recordSuccessfulLogin(), lastLoginAt: now },
     });
     await writeAuditLog(tx, {
       actorId: user.id,
@@ -81,10 +109,14 @@ export async function logout(): Promise<void> {
 const completeSetupSchema = z
   .object({
     token: z.string().min(1),
-    password: z
-      .string()
-      .min(8, { error: "Password must be at least 8 characters." }),
+    password: z.string(),
     confirmPassword: z.string(),
+  })
+  .superRefine((data, ctx) => {
+    const result = checkPasswordPolicy(data.password);
+    if (!result.ok) {
+      ctx.addIssue({ code: "custom", message: result.reason, path: ["password"] });
+    }
   })
   .refine((data) => data.password === data.confirmPassword, {
     error: "Passwords do not match.",

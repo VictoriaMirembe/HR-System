@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { departmentValues } from "@/lib/validation/employee";
 
 type PotentialManager = { id: number; fullName: string; jobTitle: string };
 type RoleOption = { id: number; name: string };
+type DepartmentHead = { id: number; fullName: string; department: string };
 
 const CONTRACT_TYPES = [
   { value: "FULL_TIME", label: "Full-time" },
@@ -17,13 +18,47 @@ const CONTRACT_TYPES = [
 export function EmployeeForm({
   potentialManagers,
   roles,
+  departmentHeads,
 }: {
   potentialManagers: PotentialManager[];
   roles: RoleOption[];
+  departmentHeads: DepartmentHead[];
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const departmentHeadByDept = useMemo(() => {
+    const map = new Map<string, DepartmentHead>();
+    for (const head of departmentHeads) map.set(head.department, head);
+    return map;
+  }, [departmentHeads]);
+
+  const [department, setDepartment] = useState("");
+  const [isDepartmentHead, setIsDepartmentHead] = useState(false);
+  const [lineManagerId, setLineManagerId] = useState("");
+
+  // Non-heads default to their department's current head; picking a
+  // different department re-applies the default (HR can still overwrite
+  // it manually afterward, this is just a starting point). Heads manage
+  // their own line manager manually — see the checkbox handler below.
+  function handleDepartmentChange(value: string) {
+    setDepartment(value);
+    if (!isDepartmentHead) {
+      const head = departmentHeadByDept.get(value);
+      setLineManagerId(head ? String(head.id) : "");
+    }
+  }
+
+  function handleIsDepartmentHeadChange(checked: boolean) {
+    setIsDepartmentHead(checked);
+    if (checked) {
+      setLineManagerId("");
+    } else {
+      const head = departmentHeadByDept.get(department);
+      setLineManagerId(head ? String(head.id) : "");
+    }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -31,7 +66,6 @@ export function EmployeeForm({
     setSubmitting(true);
 
     const form = new FormData(event.currentTarget);
-    const lineManagerId = form.get("lineManagerId");
     const contractEnd = form.get("contractEnd");
     const roleId = form.get("roleId");
 
@@ -43,6 +77,7 @@ export function EmployeeForm({
       gender: form.get("gender"),
       jobTitle: form.get("jobTitle"),
       department: form.get("department"),
+      isDepartmentHead,
       lineManagerId: lineManagerId ? Number(lineManagerId) : null,
       startDate: form.get("startDate"),
       salary: form.get("salary"),
@@ -168,7 +203,8 @@ export function EmployeeForm({
               id="department"
               name="department"
               required
-              defaultValue=""
+              value={department}
+              onChange={(e) => handleDepartmentChange(e.target.value)}
               className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-400"
             >
               <option value="" disabled>
@@ -182,6 +218,20 @@ export function EmployeeForm({
             </select>
           </div>
         </div>
+
+        <div className="flex items-center gap-2">
+          <input
+            id="isDepartmentHead"
+            type="checkbox"
+            checked={isDepartmentHead}
+            onChange={(e) => handleIsDepartmentHeadChange(e.target.checked)}
+            className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-400"
+          />
+          <label htmlFor="isDepartmentHead" className="text-sm font-medium text-slate-700">
+            This person is the head of their department
+          </label>
+        </div>
+
         <div>
           <label
             htmlFor="lineManagerId"
@@ -192,6 +242,8 @@ export function EmployeeForm({
           <select
             id="lineManagerId"
             name="lineManagerId"
+            value={lineManagerId}
+            onChange={(e) => setLineManagerId(e.target.value)}
             className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-400"
           >
             <option value="">None</option>
@@ -201,6 +253,11 @@ export function EmployeeForm({
               </option>
             ))}
           </select>
+          <p className="mt-1 text-xs text-slate-400">
+            {isDepartmentHead
+              ? "Department heads set their own manager manually (e.g. Senior Management)."
+              : "Defaults to the selected department's head, if one is assigned — pick someone else to override."}
+          </p>
         </div>
         <Field label="Start date" name="startDate" type="date" required />
       </fieldset>

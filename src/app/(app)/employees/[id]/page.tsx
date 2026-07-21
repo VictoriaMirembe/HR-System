@@ -66,6 +66,11 @@ export default async function EmployeeDetailPage({
             </h1>
             <p className="text-sm text-slate-500">
               {employee.employeeId} · {employee.jobTitle} · {employee.department}
+              {employee.isDepartmentHead && (
+                <span className="ml-2 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700">
+                  Department head
+                </span>
+              )}
             </p>
           </div>
         </div>
@@ -103,6 +108,10 @@ export default async function EmployeeDetailPage({
       <Section title="Job">
         <Field label="Job title" value={employee.jobTitle} />
         <Field label="Department" value={employee.department} />
+        <Field
+          label="Department head"
+          value={employee.isDepartmentHead ? "Yes" : "No"}
+        />
         <Field
           label="Line manager"
           value={employee.lineManager?.fullName ?? "—"}

@@ -41,6 +41,12 @@ export const employeeFieldsSchema = z.object({
   gender: z.enum(genderValues, { error: "Select a gender." }),
   jobTitle: z.string().trim().min(1, { error: "Job title is required." }),
   department: z.enum(departmentValues, { error: "Select a department." }),
+  // Optional/no default — see the comment on `roleId` below on why
+  // `.default()` is deliberately avoided on fields shared with
+  // `.partial()`: it would silently overwrite the value on every PATCH
+  // that doesn't explicitly send it. POST (create) coalesces the
+  // missing case to `false` itself.
+  isDepartmentHead: z.boolean().optional(),
   lineManagerId: z.coerce.number().int().positive().nullable().optional(),
   startDate: z.coerce.date({ error: "Enter a valid start date." }),
   salary: z.coerce

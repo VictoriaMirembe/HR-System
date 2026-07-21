@@ -63,6 +63,22 @@ generate a real session secret:
 openssl rand -base64 32   # paste the output into SESSION_SECRET in .env
 ```
 
+**Email (optional for local dev)**: welcome/setup-link emails are sent via
+[Resend](https://resend.com). If `RESEND_API_KEY` is unset, the app logs
+emails to the server console instead of sending them, which is fine for
+local development — you can copy the setup link straight out of the
+terminal. To send real emails:
+
+1. Create a Resend account and generate an API key at
+   [resend.com/api-keys](https://resend.com/api-keys); put it in
+   `RESEND_API_KEY`.
+2. Verify a sending domain at
+   [resend.com/domains](https://resend.com/domains) (add the DNS records
+   Resend gives you), then set `EMAIL_FROM` to an address on that domain,
+   e.g. `"MCI HR System <hr@mciug.org>"`. Until a domain is verified,
+   Resend only allows sending to the email address on your own Resend
+   account — fine for testing, not for real employees.
+
 ### 4. Run migrations
 
 ```bash
@@ -147,10 +163,11 @@ Built so far, in dependency order:
   `@47ng/cloak` backed by a KMS-managed key), restrict the database role the
   app connects as to the minimum it needs, and enable disk-level encryption
   on the database volume.
-- **Email**: `src/lib/email/index.ts` defines an `EmailProvider` interface
-  with only a console-logging dev implementation (no SMTP/API credentials
-  are configured). Swap in a real provider (SES, Resend, etc.) by
-  implementing that interface — no call sites need to change.
+- **Email**: `src/lib/email/index.ts` defines an `EmailProvider` interface.
+  A `ResendEmailProvider` is wired in when `RESEND_API_KEY` is set (falls
+  back to console-logging otherwise — see "Environment variables" above).
+  Swapping to a different provider (SES, SMTP, etc.) means implementing the
+  same interface — no call sites need to change.
 - **File storage**: not yet built (needed starting with the Document
   Repository feature) — will follow the same pluggable-interface pattern as
   email, targeting local disk for now with an S3-compatible swap path.

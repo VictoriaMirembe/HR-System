@@ -7,14 +7,15 @@ import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { createEmployeeSchema } from "@/lib/validation/employee";
 import { generateEmployeeId } from "@/lib/employee-id";
 import { writeAuditLog } from "@/lib/audit";
-import { emailProvider } from "@/lib/email";
+import { sendEmailSafely } from "@/lib/email";
 import { employeeListWhere } from "@/lib/employee-scope";
 import { grantEligibleLeaveBalances } from "@/lib/leave/grant-balances";
+import { demoteOtherDepartmentHeads } from "@/lib/employees/department-head";
 import type { Prisma } from "@/generated/prisma/client";
 
 const SETUP_LINK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-// GET /api/employees?search=&department=&status=
+// GET /api/employees?search=&department=&status=&headsOnly=
 // Directory listing, scoped by role (see src/lib/employee-scope.ts).
 export async function GET(request: NextRequest) {
   const session = await getOptionalSession();
@@ -29,6 +30,7 @@ export async function GET(request: NextRequest) {
   const search = searchParams.get("search")?.trim();
   const department = searchParams.get("department")?.trim();
   const status = searchParams.get("status");
+  const headsOnly = searchParams.get("headsOnly");
 
   const where: Prisma.EmployeeWhereInput = {
     ...employeeListWhere(session),
@@ -36,6 +38,7 @@ export async function GET(request: NextRequest) {
     ...(status === "ACTIVE" || status === "ARCHIVED"
       ? { employmentStatus: status }
       : {}),
+    ...(headsOnly === "true" ? { isDepartmentHead: true } : {}),
     ...(search
       ? {
           OR: [
@@ -56,6 +59,7 @@ export async function GET(request: NextRequest) {
       fullName: true,
       jobTitle: true,
       department: true,
+      isDepartmentHead: true,
       workEmail: true,
       employmentStatus: true,
       startDate: true,
@@ -162,6 +166,7 @@ export async function POST(request: NextRequest) {
         gender: data.gender,
         jobTitle: data.jobTitle,
         department: data.department,
+        isDepartmentHead: data.isDepartmentHead ?? false,
         lineManagerId: data.lineManagerId ?? null,
         startDate: data.startDate,
         salary: data.salary,
@@ -205,12 +210,31 @@ export async function POST(request: NextRequest) {
       metadata: { employeeId: created.employeeId, roleName: role.name },
     });
 
+    // Exactly one department head at a time — creating a new one demotes
+    // whoever held it before, in the same transaction.
+    if (created.isDepartmentHead) {
+      const demoted = await demoteOtherDepartmentHeads(tx, created.department, created.id);
+      if (demoted) {
+        await writeAuditLog(tx, {
+          actorId: session.userId,
+          actorName: actor?.fullName ?? "Unknown",
+          action: "employee.update",
+          entity: "Employee",
+          entityId: String(demoted.id),
+          metadata: {
+            fields: ["isDepartmentHead"],
+            reason: `Replaced as ${created.department} department head by ${created.fullName}`,
+          },
+        });
+      }
+    }
+
     return created;
   });
 
   const appUrl = process.env.APP_URL ?? "http://localhost:3000";
   const setupUrl = `${appUrl}/setup/${setupToken}`;
-  await emailProvider.send({
+  await sendEmailSafely({
     to: data.personalEmail,
     subject: "Welcome to Media Challenge Initiative",
     body: `Hi ${data.fullName},\n\nYour employee profile has been created (ID: ${employee.employeeId}).\nSet up your account password to get started: ${setupUrl}\n\nThis link expires in 7 days.`,

@@ -47,6 +47,8 @@ const ACTION_LABELS: Record<string, string> = {
   "document.delete": "Document deleted",
   "auth.login": "Signed in",
   "auth.setup_completed": "Account setup completed",
+  "auth.password_changed": "Password changed",
+  "auth.account_locked": "Account locked (too many failed logins)",
 };
 
 export function describeActionLabel(action: string): string {
@@ -137,6 +139,12 @@ export function describeAuditEntry(action: string, metadata: Metadata): string {
       return "Logged into the system.";
     case "auth.setup_completed":
       return "Completed one-time account setup and chose a password.";
+    case "auth.password_changed":
+      return "Changed their own account password.";
+    case "auth.account_locked": {
+      const attempts = field(metadata, "failedAttempts");
+      return `Locked for 15 minutes after ${attempts ?? "too many"} failed login attempts.`;
+    }
     default:
       return metadata ? JSON.stringify(metadata) : "No further detail recorded.";
   }

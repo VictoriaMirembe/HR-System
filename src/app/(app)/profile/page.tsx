@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/page-header";
 import { ProfilePictureUpload } from "./profile-picture-upload";
 import { ProfileForm } from "./profile-form";
+import { ChangePasswordForm } from "./change-password-form";
 
 export default async function ProfilePage() {
   const session = await verifySession();
@@ -39,6 +40,13 @@ export default async function ProfilePage() {
           emergencyContactPhone: employee.emergencyContactPhone ?? "",
         }}
       />
+
+      <div>
+        <h2 className="mb-3 text-sm font-semibold text-sky-700">
+          Change password
+        </h2>
+        <ChangePasswordForm />
+      </div>
     </div>
   );
 }
